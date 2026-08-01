@@ -19,10 +19,26 @@ export default async function AppLayout({
           <Link href="/dashboard" className="font-semibold">
             HoldCo OS
           </Link>
-          <nav className="flex gap-4 text-sm text-muted-foreground">
+          <nav className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             <Link href="/dashboard" className="hover:text-foreground">
               Dashboard
             </Link>
+            {active && (
+              <>
+                <Link href="/clients" className="hover:text-foreground">
+                  Clients
+                </Link>
+                <Link href="/projects" className="hover:text-foreground">
+                  Projects
+                </Link>
+                <Link href="/resources" className="hover:text-foreground">
+                  Resources
+                </Link>
+                <Link href="/indirect-codes" className="hover:text-foreground">
+                  Indirect codes
+                </Link>
+              </>
+            )}
             <Link href="/entities" className="hover:text-foreground">
               Entities
             </Link>
