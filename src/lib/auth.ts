@@ -2,6 +2,7 @@ import "server-only";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { db } from "@/db";
 import { runWithUser } from "@/db/rls";
 import { entity, membership, organization, user } from "@/db/schema";
@@ -44,32 +45,24 @@ async function ensureAppUser(authUser: AuthUser): Promise<AppUser> {
   if (byAuthId) return byAuthId;
 
   const email = authUser.email ?? `${authUser.id}@no-email.local`;
-
-  // Link a pre-seeded user that shares this email but has no auth_id yet.
-  const [byEmail] = await db
-    .select()
-    .from(user)
-    .where(and(eq(user.email, email), isNull(user.authId)))
-    .limit(1);
-  if (byEmail) {
-    const [linked] = await db
-      .update(user)
-      .set({ authId: authUser.id })
-      .where(eq(user.id, byEmail.id))
-      .returning();
-    return linked;
-  }
-
   const orgId = await getOrCreateOrganizationId();
   const name =
     (authUser.user_metadata?.name as string | undefined) ??
     (authUser.user_metadata?.full_name as string | undefined) ??
     email;
-  const [created] = await db
+
+  // Upsert by email: creates the row on first sign-in, or links an existing
+  // row (a pre-seeded user, or a prior partial sign-in) to this auth id. The
+  // on-conflict makes concurrent first-load renders (layout + page) race-safe.
+  const [row] = await db
     .insert(user)
     .values({ organizationId: orgId, email, name, authId: authUser.id })
+    .onConflictDoUpdate({
+      target: user.email,
+      set: { authId: authUser.id, updatedAt: new Date() },
+    })
     .returning();
-  return created;
+  return row;
 }
 
 async function getOrCreateOrganizationId(): Promise<string> {
@@ -85,8 +78,12 @@ async function getOrCreateOrganizationId(): Promise<string> {
   return created.id;
 }
 
-/** Full context for the current request, or null if not signed in. */
-export async function getContext(): Promise<AppContext | null> {
+/**
+ * Full context for the current request, or null if not signed in. Wrapped in
+ * React `cache` so it runs once per request even when the layout and the page
+ * both call it (this also avoids a concurrent first-sign-in insert race).
+ */
+export const getContext = cache(async (): Promise<AppContext | null> => {
   const authUser = await getAuthUser();
   if (!authUser) return null;
   const appUser = await ensureAppUser(authUser);
@@ -105,7 +102,7 @@ export async function getContext(): Promise<AppContext | null> {
   );
 
   return { authUser, appUser, memberships };
-}
+});
 
 /** Like getContext, but redirects to /login when not signed in. */
 export async function requireContext(): Promise<AppContext> {
