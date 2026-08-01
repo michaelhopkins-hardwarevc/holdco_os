@@ -1,0 +1,14 @@
+# Normalize line endings to LF in the repo (Windows checkouts still get CRLF
+# locally where appropriate). Keeps builds consistent on Vercel's Linux runners.
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary
+*.docx binary
