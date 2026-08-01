@@ -2,6 +2,29 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-08-01 — Fix: dashboard 500 after login (production)
+
+Two bugs caused a server-side exception on the first authenticated page load in
+production (they didn't surface in tests, which use PGlite directly, or in the
+build):
+
+- **DB client recreated per access in production.** `src/db/index.ts` only
+  cached the Postgres client when `NODE_ENV !== "production"`, and its Proxy
+  built a fresh drizzle instance (with unbound methods) on every property
+  access. In production that opened a new pool per use and broke
+  `db.transaction`'s `this`. Fixed: memoize the client *and* the drizzle
+  instance on `globalThis` in all environments, and bind methods to the
+  instance.
+- **Concurrent first-sign-in insert race.** The `(app)` layout and the page both
+  call `getContext()`, so on a brand-new user's first load two `ensureAppUser`
+  inserts raced and one hit `user_email_unique` → 500. Fixed by wrapping
+  `getContext` in React `cache()` (runs once per request) and making the user
+  create an idempotent `onConflictDoUpdate` upsert by email.
+
+Verified by reproducing the exact flow against a local production build with a
+real Supabase login (dashboard now renders; create-entity → owner-scoped detail
+works).
+
 ## 2026-08-01 — §7.1 Entities, users, roles
 
 - **Auth via `@supabase/ssr`.** Cookie-based sessions for the App Router:
