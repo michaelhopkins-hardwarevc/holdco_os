@@ -1,21 +1,17 @@
 // @vitest-environment node
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as schema from "./schema";
+import { createTestDb, type TestDb } from "./test-helpers";
 import { seed } from "./seed";
 
-// Spin up a fresh in-process Postgres and apply the generated migration. This
-// proves the migration applies cleanly against a real Postgres engine without
-// needing a Supabase connection.
-let pg: PGlite;
-let db: ReturnType<typeof drizzle<typeof schema>>;
+// Spin up a fresh in-process Postgres and apply all migrations. This proves the
+// migrations apply cleanly against a real Postgres engine without needing a
+// Supabase connection.
+let pg: TestDb["pg"];
+let db: TestDb["db"];
 
 beforeEach(async () => {
-  pg = new PGlite();
-  db = drizzle(pg, { schema });
-  await migrate(db, { migrationsFolder: "./src/db/migrations" });
+  ({ pg, db } = await createTestDb());
 });
 
 afterEach(async () => {

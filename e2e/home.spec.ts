@@ -1,10 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-// Smoke test proving the e2e harness works end to end: the app builds, serves,
-// and renders the placeholder home page and health route.
-test("home page renders", async ({ page }) => {
+// Smoke tests for the deployed app shell + auth gate.
+test("unauthenticated visit is redirected to the login page", async ({
+  page,
+}) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "HoldCo OS" })).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByLabel("Email")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
 test("health route returns ok", async ({ request }) => {

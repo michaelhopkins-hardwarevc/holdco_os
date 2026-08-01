@@ -2,6 +2,40 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-08-01 — §7.1 Entities, users, roles
+
+- **Auth via `@supabase/ssr`.** Cookie-based sessions for the App Router:
+  browser client, server client, a service-role admin client (invites), and
+  middleware that refreshes the session and redirects unauthenticated users to
+  `/login`. Email/password and Google are both wired; Google also needs its
+  provider configured in the Supabase + Google dashboards to function.
+- **RLS is enforced on reads via a role switch, not the service role.** The app
+  connects as `postgres` (which bypasses RLS). To actually enforce policies,
+  `runWithUser()` opens a transaction, runs `set local role authenticated` and
+  sets `request.jwt.claims.sub`, so `auth.uid()` resolves and every read on that
+  transaction is filtered by the SELECT policies. Verified against real Supabase.
+- **Two identity ids.** Supabase Auth users (`auth.users.id`, what `auth.uid()`
+  returns) are distinct from our `public.user.id`. `public.user.auth_id` links
+  them; the `app_current_user_id()` SECURITY DEFINER function maps one to the
+  other so policies read naturally.
+- **Writes go through the service role behind authorized server actions.**
+  Config actions (create/edit entity, invite, change role) check the caller's
+  role with `assertEntityRole()` (spec §9: authorize every action by role) then
+  write via the service-role connection. Read *scoping/isolation* is enforced by
+  RLS (the tested AC); write *authorization* is enforced in the action layer.
+- **Bootstrap: any signed-in user can create an entity** and becomes its owner
+  (there is no entity to be an admin of yet). Within an entity, only owner/admin
+  can invite or change roles. Open email/password sign-up is enabled for the
+  same bootstrap reason; a production build would restrict sign-up to invites.
+- **Invites are membership-first.** `inviteMember` always records the
+  `membership` (so the role assignment is immediately visible) and sends the
+  Supabase email invite best-effort. When the invitee later signs in with that
+  email, `ensureAppUser` links their auth account to the existing membership.
+- **RLS tests emulate Supabase locally.** `createTestDb()` creates the
+  `anon`/`authenticated`/`service_role` roles and an `auth.uid()` that reads the
+  JWT claim, then applies the same migrations, so the policy behaviour is proven
+  against a real Postgres engine (PGlite) with no Supabase connection.
+
 ## 2026-08-01 — Database schema + seed (spec §6)
 
 - **Tests run against PGlite, not Supabase.** `@electric-sql/pglite` is a real
