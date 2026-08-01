@@ -120,10 +120,16 @@ added in the schema milestone. All schema changes go through generated
 migrations — never hand-edit the database.
 
 ```bash
-npm run db:generate    # create a migration from src/db/schema.ts
-npm run db:migrate     # apply migrations
+npm run db:generate    # create a migration from the schema (no DB needed)
+npm run db:migrate     # apply migrations to the database in DATABASE_URL
+npm run db:seed        # load the sample design-firm data (safe: skips if present)
 npm run db:studio      # browse data
 ```
+
+The schema lives in `src/db/schema/` (core identity, Phase 1, and later-phase
+scaffolding). Migrations are generated into `src/db/migrations/` and committed.
+The schema and seed are verified by `npm test` against an in-process Postgres
+(PGlite) — no database connection required to run the tests.
 
 ## Project layout
 
