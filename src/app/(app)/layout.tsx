@@ -1,0 +1,59 @@
+import Link from "next/link";
+import { EntitySwitcher } from "@/components/entity-switcher";
+import { Button } from "@/components/ui/button";
+import { resolveActiveEntity } from "@/lib/active-entity";
+import { requireContext } from "@/lib/auth";
+
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const ctx = await requireContext();
+  const active = await resolveActiveEntity(ctx.memberships);
+
+  return (
+    <div className="min-h-screen">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3">
+        <div className="flex items-center gap-5">
+          <Link href="/dashboard" className="font-semibold">
+            HoldCo OS
+          </Link>
+          <nav className="flex gap-4 text-sm text-muted-foreground">
+            <Link href="/dashboard" className="hover:text-foreground">
+              Dashboard
+            </Link>
+            <Link href="/entities" className="hover:text-foreground">
+              Entities
+            </Link>
+            {active && (
+              <Link
+                href={`/entities/${active.entityId}/members`}
+                className="hover:text-foreground"
+              >
+                Members
+              </Link>
+            )}
+          </nav>
+        </div>
+        <div className="flex items-center gap-3">
+          {ctx.memberships.length > 0 && (
+            <EntitySwitcher
+              memberships={ctx.memberships}
+              activeEntityId={active?.entityId ?? null}
+            />
+          )}
+          <span className="hidden text-sm text-muted-foreground sm:inline">
+            {ctx.appUser.email}
+          </span>
+          <form action="/auth/signout" method="post">
+            <Button type="submit" variant="outline" size="sm">
+              Sign out
+            </Button>
+          </form>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+    </div>
+  );
+}

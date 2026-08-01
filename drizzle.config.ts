@@ -1,5 +1,10 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+
+// Load .env.local first (developer/local secrets), then fall back to .env.
+// dotenv does not override already-set vars, so .env.local wins.
+config({ path: ".env.local" });
+config();
 
 // Drizzle is configured for Supabase Postgres. Schema changes are made ONLY
 // through generated migrations (see CLAUDE.md). No domain tables exist yet;

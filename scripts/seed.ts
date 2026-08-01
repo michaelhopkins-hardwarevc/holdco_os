@@ -1,9 +1,13 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../src/db/schema";
 import { SAMPLE_ORG_SLUG, seed } from "../src/db/seed";
+
+// Load .env.local first, then .env (dotenv does not override existing vars).
+config({ path: ".env.local" });
+config();
 
 // Runnable seed against the real Supabase Postgres. Safe to run more than once:
 // it skips if the sample organization already exists (no duplicate data, no

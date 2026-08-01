@@ -131,6 +131,24 @@ scaffolding). Migrations are generated into `src/db/migrations/` and committed.
 The schema and seed are verified by `npm test` against an in-process Postgres
 (PGlite) — no database connection required to run the tests.
 
+### Authentication & access control
+
+- Login uses Supabase Auth (email/password + Google) via `@supabase/ssr`.
+  Enable providers in the Supabase dashboard under **Authentication → Providers**.
+  Google additionally needs an OAuth client configured in Google Cloud.
+- Row-level security scopes every read by `membership`: a user only sees rows
+  for entities they belong to. Reads run through `runWithUser()`, which enforces
+  RLS; privileged writes run behind role-checked server actions.
+- To run locally with real auth: fill `.env.local` (see above), then
+  `npm run dev` and open http://localhost:3000. You'll be redirected to
+  `/login`.
+
+### Deploying (Vercel)
+
+Set the same variables from `.env.local` in the Vercel project's **Environment
+Variables** (Settings → Environment Variables), then redeploy. The app reads
+them at runtime; the build itself does not need them.
+
 ## Project layout
 
 ```
