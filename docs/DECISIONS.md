@@ -2,6 +2,42 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-08-01 — Database schema + seed (spec §6)
+
+- **Tests run against PGlite, not Supabase.** `@electric-sql/pglite` is a real
+  Postgres compiled to WASM that runs in-process. Tests apply the generated
+  migration and load the seed against it, so "migrations apply cleanly and the
+  seed loads" is proven with zero external setup and no secrets. The same seed
+  function also runs against real Supabase via `npm run db:seed`.
+- **RLS = enable, no policies (default-deny).** Every table gets
+  `ENABLE ROW LEVEL SECURITY`. With no permissive policies, non-owner roles
+  (Supabase's `anon` / `authenticated`) are denied by default — exactly the
+  posture we want now. The membership-based *grant* policies come with auth in
+  §7.1. The app/seed connect as the table owner, which bypasses RLS, so seeding
+  works; the security boundary applies to the API roles.
+- **`entity_id` on child tables too.** The spec lists `entity_id` on top-level
+  tables; we also put `organization_id` + `entity_id` on child tables (contact,
+  phase, invoice_line, payment, rate_override). It's a small denormalization
+  that lets every RLS policy scope uniformly by entity without a join.
+- **`audit_log` created now.** It isn't in the §6.1–6.4 lists, but CLAUDE.md
+  requires an audit trail before any financial write, so the table is laid down
+  with the schema to avoid a later migration. No rows are written until the
+  features that mutate financial records exist.
+- **Money is integer cents; hours/percent are `numeric`.** Rates are
+  cents-per-hour. `numeric` columns (hours, budgets, utilization, markup) are
+  exact decimals, never floats.
+- **Enums via `pgEnum`** for the well-defined value sets (entity type, role,
+  project/invoice/time statuses, indirect category, ...). Generic statuses
+  (client/resource/entity/expense) are `text` with defaults to stay flexible.
+- **Invoiced-immutability trigger deferred to §7.5.** CLAUDE.md says invoiced
+  time is "protected from re-billing at the DB level." That protection only
+  bites once invoicing exists, so the DB trigger lands with the invoicing
+  milestone. The `time_entry.status` enum (incl. `invoiced`) and the
+  exactly-one-charge / indirect-not-billable / phase-requires-project /
+  hours-nonneg check constraints are in place now.
+- **UUID v4 defaults** via `gen_random_uuid()` (core Postgres, supported by both
+  Supabase and PGlite).
+
 ## 2026-08-01 — Scaffold
 
 - **Next.js pinned to 15, not 16.** `create-next-app@latest` now installs
