@@ -6,9 +6,24 @@ import { entity, organization } from "@/db/schema";
 // TEMPORARY diagnostic endpoint — remove after debugging. Surfaces the real
 // error from the database layer in the Vercel runtime.
 export async function GET() {
+  // Safe shape report of the connection strings (never the secret value).
+  function shape(v: string | undefined) {
+    if (!v) return { present: false };
+    return {
+      present: true,
+      length: v.length,
+      startsWithPostgres: v.startsWith("postgres"),
+      hasQuotes: /["']/.test(v),
+      hasWhitespace: /\s/.test(v),
+      hasBracket: v.includes("["),
+      firstChars: v.slice(0, 13),
+    };
+  }
+
   const results: Record<string, unknown> = {
-    hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
     nodeEnv: process.env.NODE_ENV,
+    databaseUrlShape: shape(process.env.DATABASE_URL),
+    directUrlShape: shape(process.env.DIRECT_URL),
   };
 
   try {
