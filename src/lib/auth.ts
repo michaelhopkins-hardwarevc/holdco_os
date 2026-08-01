@@ -6,6 +6,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import { runWithUser } from "@/db/rls";
 import { entity, membership, organization, user } from "@/db/schema";
+import { resolveActiveEntity } from "@/lib/active-entity";
 import { createClient } from "@/lib/supabase/server";
 
 export type AppUser = typeof user.$inferSelect;
@@ -21,8 +22,10 @@ export type AppContext = {
   memberships: MembershipInfo[];
 };
 
-// Roles allowed to configure entities/members (spec §7.1 / §9).
+// Roles allowed to configure entities/members and maintain resources/codes.
 export const ADMIN_ROLES: Role[] = ["owner", "admin"];
+// Roles allowed to manage clients/projects (spec §7.2).
+export const MANAGER_ROLES: Role[] = ["owner", "admin", "manager"];
 
 /** The Supabase Auth user for the current request, or null. */
 export async function getAuthUser(): Promise<AuthUser | null> {
@@ -109,6 +112,21 @@ export async function requireContext(): Promise<AppContext> {
   const ctx = await getContext();
   if (!ctx) redirect("/login");
   return ctx;
+}
+
+/**
+ * Require a signed-in user with an active entity. Redirects to /entities when
+ * the user belongs to no entity yet. Returns the context and the active
+ * membership (entityId, entityName, role).
+ */
+export async function requireActiveEntity(): Promise<{
+  ctx: AppContext;
+  active: MembershipInfo;
+}> {
+  const ctx = await requireContext();
+  const active = await resolveActiveEntity(ctx.memberships);
+  if (!active) redirect("/entities");
+  return { ctx, active };
 }
 
 /**
