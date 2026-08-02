@@ -1,4 +1,12 @@
-import { and, asc, eq, isNull, type ExtractTablesWithRelations } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  isNull,
+  lte,
+  type ExtractTablesWithRelations,
+} from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   client,
@@ -8,6 +16,7 @@ import {
   phase,
   project,
   resource,
+  timeEntry,
   user,
 } from "@/db/schema";
 
@@ -103,6 +112,14 @@ export function listPhases(db: QueryDb, entityId: string, projectId: string) {
     .orderBy(asc(phase.sortOrder));
 }
 
+export function listEntityPhases(db: QueryDb, entityId: string) {
+  return db
+    .select({ id: phase.id, projectId: phase.projectId, name: phase.name })
+    .from(phase)
+    .where(and(eq(phase.entityId, entityId), isNull(phase.deletedAt)))
+    .orderBy(asc(phase.sortOrder));
+}
+
 export function listResources(
   db: QueryDb,
   entityId: string,
@@ -174,6 +191,88 @@ export function getIndirectCode(db: QueryDb, entityId: string, codeId: string) {
       ),
     )
     .limit(1);
+}
+
+// --- Timesheet (spec §7.3) --------------------------------------------------
+
+/** The billable resource linked to a user in an entity (for their timesheet). */
+export function getResourceForUser(
+  db: QueryDb,
+  entityId: string,
+  userId: string,
+) {
+  return db
+    .select()
+    .from(resource)
+    .where(
+      and(
+        eq(resource.entityId, entityId),
+        eq(resource.userId, userId),
+        isNull(resource.deletedAt),
+      ),
+    )
+    .limit(1);
+}
+
+/** All non-deleted time entries for a resource within a date range, with the
+ *  labels needed to render grid rows. */
+export function getWeekEntries(
+  db: QueryDb,
+  entityId: string,
+  resourceId: string,
+  start: string,
+  end: string,
+) {
+  return db
+    .select({
+      id: timeEntry.id,
+      workDate: timeEntry.workDate,
+      hours: timeEntry.hours,
+      chargeType: timeEntry.chargeType,
+      projectId: timeEntry.projectId,
+      phaseId: timeEntry.phaseId,
+      indirectCodeId: timeEntry.indirectCodeId,
+      billable: timeEntry.billable,
+      billableAmount: timeEntry.billableAmount,
+      costAmount: timeEntry.costAmount,
+      status: timeEntry.status,
+      projectCode: project.code,
+      phaseName: phase.name,
+      indirectCodeLabel: indirectCode.code,
+    })
+    .from(timeEntry)
+    .leftJoin(project, eq(project.id, timeEntry.projectId))
+    .leftJoin(phase, eq(phase.id, timeEntry.phaseId))
+    .leftJoin(indirectCode, eq(indirectCode.id, timeEntry.indirectCodeId))
+    .where(
+      and(
+        eq(timeEntry.entityId, entityId),
+        eq(timeEntry.resourceId, resourceId),
+        gte(timeEntry.workDate, start),
+        lte(timeEntry.workDate, end),
+        isNull(timeEntry.deletedAt),
+      ),
+    );
+}
+
+/** Submitted time entries across the entity (for the approvals queue). */
+export function listSubmittedEntries(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      resourceId: timeEntry.resourceId,
+      resourceName: resource.name,
+      workDate: timeEntry.workDate,
+      hours: timeEntry.hours,
+    })
+    .from(timeEntry)
+    .innerJoin(resource, eq(resource.id, timeEntry.resourceId))
+    .where(
+      and(
+        eq(timeEntry.entityId, entityId),
+        eq(timeEntry.status, "submitted"),
+        isNull(timeEntry.deletedAt),
+      ),
+    );
 }
 
 // --- Pure budget math (spec §7.2: project page shows a budget summary) -------
