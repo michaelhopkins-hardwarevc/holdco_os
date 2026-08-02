@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#e9e9e7; font-family:"Geist",ui-sans-serif,system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:inherit; text-decoration:none; }
+  a:hover { color:oklch(0.145 0 0); }
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:56px;padding:56px 48px 96px;align-items:flex-start">
+
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:900px">
+    <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b">Recreation · from src/app + src/components</div>
+    <div style="font-size:30px;font-weight:600;letter-spacing:-0.02em;color:#111">HoldCo OS, as it looks today</div>
+    <div style="font-size:15px;line-height:1.6;color:#555;text-wrap:pretty">Default shadcn/ui on Tailwind v4, light theme, Geist. Top bar with inline text links, 1024px content column, unstyled tables, one card pattern. Every value below is lifted from the repo, not invented.</div>
+  </div>
+
+  <!-- ============ LOGIN ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b">/login · app/login/login-form.tsx</div>
+    <div style="width:1280px;height:520px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;overflow:hidden;color:oklch(0.145 0 0);display:flex;align-items:center;justify-content:center;padding:0 24px">
+      <div style="width:100%;max-width:384px;display:flex;flex-direction:column;gap:16px;padding:16px 0;background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1)">
+        <div style="display:grid;gap:4px;padding:0 16px">
+          <div style="font-size:16px;line-height:1.375;font-weight:500">HoldCo OS</div>
+          <div style="font-size:14px;color:oklch(0.556 0 0)">Sign in to your account</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;padding:0 16px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="font-size:14px;font-weight:500;line-height:1">Email</label>
+            <input type="email" value="staff@example.com" readonly style="height:32px;width:100%;border:1px solid oklch(0.922 0 0);border-radius:10px;background:transparent;padding:4px 10px;font-size:14px;font-family:inherit;color:inherit;outline:none">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="font-size:14px;font-weight:500;line-height:1">Password</label>
+            <input type="password" value="password" readonly style="height:32px;width:100%;border:1px solid oklch(0.922 0 0);border-radius:10px;background:transparent;padding:4px 10px;font-size:14px;font-family:inherit;color:inherit;outline:none">
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px;align-items:center;border-top:1px solid oklch(0.922 0 0);background:oklch(0.97 0 0 / 0.5);padding:16px;border-radius:0 0 14px 14px">
+          <div style="display:flex;align-items:center;justify-content:center;width:100%;height:32px;border-radius:10px;background:oklch(0.205 0 0);color:oklch(0.985 0 0);font-size:14px;font-weight:500">Sign in</div>
+          <div style="display:flex;align-items:center;justify-content:center;width:100%;height:32px;border-radius:10px;border:1px solid oklch(0.922 0 0);background:#fff;font-size:14px;font-weight:500">Continue with Google</div>
+          <div style="font-size:14px;color:oklch(0.556 0 0)">Need an account? Sign up</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b">/dashboard · app/(app)/dashboard/page.tsx</div>
+    <div style="width:1280px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;overflow:hidden;color:oklch(0.145 0 0)">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid oklch(0.922 0 0);padding:12px 24px">
+        <div style="display:flex;align-items:center;gap:20px">
+          <span style="font-weight:600;font-size:16px">HoldCo OS</span>
+          <nav style="display:flex;flex-wrap:wrap;gap:16px;font-size:14px;color:oklch(0.556 0 0)"><a href="#">Dashboard</a><a href="#">Timesheet</a><a href="#">Approvals</a><a href="#">Clients</a><a href="#">Projects</a><a href="#">Resources</a><a href="#">Indirect codes</a><a href="#">Entities</a><a href="#">Members</a></nav>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:240px;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px">Brooks Stevens Design Associates · owner<span style="color:oklch(0.556 0 0)">▾</span></div>
+          <span style="font-size:14px;color:oklch(0.556 0 0)">owner@example.com</span>
+          <div style="display:flex;align-items:center;justify-content:center;height:28px;border-radius:10px;border:1px solid oklch(0.922 0 0);background:#fff;padding:0 10px;font-size:12.8px;font-weight:500">Sign out</div>
+        </div>
+      </div>
+      <div style="max-width:1024px;margin:0 auto;padding:32px 24px">
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div>
+            <h1 style="margin:0;font-size:24px;line-height:1.33;font-weight:600;letter-spacing:-0.01em">Brooks Stevens Design Associates</h1>
+            <p style="margin:0;font-size:16px;color:oklch(0.556 0 0)">Your role: owner. All figures below are scoped to this entity.</p>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div style="background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1);padding:16px 0"><div style="display:grid;gap:4px;padding:0 16px"><div style="font-size:14px;color:oklch(0.556 0 0)">Clients</div><div style="font-size:30px;line-height:1.2;font-weight:500">3</div></div></div>
+            <div style="background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1);padding:16px 0"><div style="display:grid;gap:4px;padding:0 16px"><div style="font-size:14px;color:oklch(0.556 0 0)">Projects</div><div style="font-size:30px;line-height:1.2;font-weight:500">3</div></div></div>
+            <div style="background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1);padding:16px 0"><div style="display:grid;gap:4px;padding:0 16px"><div style="font-size:14px;color:oklch(0.556 0 0)">Resources</div><div style="font-size:30px;line-height:1.2;font-weight:500">4</div></div></div>
+            <div style="background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1);padding:16px 0"><div style="display:grid;gap:4px;padding:0 16px"><div style="font-size:14px;color:oklch(0.556 0 0)">Time entries</div><div style="font-size:30px;line-height:1.2;font-weight:500">23</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TIMESHEET ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b">/timesheet · components/timesheet-grid.tsx</div>
+    <div style="width:1280px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;overflow:hidden;color:oklch(0.145 0 0)">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid oklch(0.922 0 0);padding:12px 24px">
+        <div style="display:flex;align-items:center;gap:20px">
+          <span style="font-weight:600;font-size:16px">HoldCo OS</span>
+          <nav style="display:flex;flex-wrap:wrap;gap:16px;font-size:14px;color:oklch(0.556 0 0)"><a href="#">Dashboard</a><a href="#">Timesheet</a><a href="#">Approvals</a><a href="#">Clients</a><a href="#">Projects</a><a href="#">Resources</a><a href="#">Indirect codes</a><a href="#">Entities</a><a href="#">Members</a></nav>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:240px;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px">Brooks Stevens Design Associates · staff<span style="color:oklch(0.556 0 0)">▾</span></div>
+          <span style="font-size:14px;color:oklch(0.556 0 0)">staff@example.com</span>
+          <div style="display:flex;align-items:center;justify-content:center;height:28px;border-radius:10px;border:1px solid oklch(0.922 0 0);background:#fff;padding:0 10px;font-size:12.8px;font-weight:500">Sign out</div>
+        </div>
+      </div>
+      <div style="max-width:1024px;margin:0 auto;padding:32px 24px">
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
+            <div>
+              <h1 style="margin:0;font-size:24px;line-height:1.33;font-weight:600;letter-spacing:-0.01em">Timesheet — Ryan Hahn</h1>
+              <p style="margin:0;font-size:16px;color:oklch(0.556 0 0)">Week of 2026-07-27 · status: draft</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="display:flex;align-items:center;height:28px;border-radius:10px;border:1px solid oklch(0.922 0 0);padding:0 10px;font-size:12.8px;font-weight:500">← Prev</div>
+              <div style="display:flex;align-items:center;height:28px;border-radius:10px;border:1px solid oklch(0.922 0 0);padding:0 10px;font-size:12.8px;font-weight:500">This week</div>
+              <div style="display:flex;align-items:center;height:28px;border-radius:10px;border:1px solid oklch(0.922 0 0);padding:0 10px;font-size:12.8px;font-weight:500">Next →</div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <table style="width:100%;border-collapse:collapse;font-size:14px">
+              <thead>
+                <tr style="border-bottom:1px solid oklch(0.922 0 0);color:oklch(0.556 0 0)">
+                  <th style="padding:8px;text-align:left;font-weight:500">Task</th>
+                  <th style="padding:8px;text-align:center;font-weight:500">Mon 07-27</th>
+                  <th style="padding:8px;text-align:center;font-weight:500">Tue 07-28</th>
+                  <th style="padding:8px;text-align:center;font-weight:500">Wed 07-29</th>
+                  <th style="padding:8px;text-align:center;font-weight:500">Thu 07-30</th>
+                  <th style="padding:8px;text-align:center;font-weight:500">Fri 07-31</th>
+                  <th style="padding:8px;text-align:right;font-weight:500">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid oklch(0.922 0 0)">
+                  <td style="padding:8px;white-space:nowrap">P-6041 · Discovery</td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px">8</div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px">8</div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px">8</div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px">8</div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px">8</div></td>
+                  <td style="padding:8px;text-align:right;font-weight:500">40</td>
+                </tr>
+                <tr style="border-bottom:1px solid oklch(0.922 0 0)">
+                  <td style="padding:8px;white-space:nowrap">BD</td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px"></div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px"></div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px"></div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px"></div></td>
+                  <td style="padding:4px"><div style="height:32px;width:64px;margin:0 auto;border:1px solid oklch(0.922 0 0);border-radius:10px"></div></td>
+                  <td style="padding:8px;text-align:right;font-weight:500">0</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr style="font-weight:500">
+                  <td style="padding:8px">Daily total</td>
+                  <td style="padding:8px;text-align:center">8</td>
+                  <td style="padding:8px;text-align:center">8</td>
+                  <td style="padding:8px;text-align:center">8</td>
+                  <td style="padding:8px;text-align:center">8</td>
+                  <td style="padding:8px;text-align:center">8</td>
+                  <td style="padding:8px;text-align:right">40</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:12px">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <span style="font-size:12px;color:oklch(0.556 0 0)">Project</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:180px;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px;color:oklch(0.556 0 0)">Project<span>▾</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <span style="font-size:12px;color:oklch(0.556 0 0)">Phase</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:160px;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px;color:oklch(0.556 0 0)">Phase<span>▾</span></div>
+              </div>
+              <div style="display:flex;align-items:center;height:32px;border-radius:10px;border:1px solid oklch(0.922 0 0);padding:0 10px;font-size:14px;font-weight:500">Add project row</div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:12px">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <span style="font-size:12px;color:oklch(0.556 0 0)">Indirect code</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:180px;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px;color:oklch(0.556 0 0)">Indirect code<span>▾</span></div>
+              </div>
+              <div style="display:flex;align-items:center;height:32px;border-radius:10px;border:1px solid oklch(0.922 0 0);padding:0 10px;font-size:14px;font-weight:500">Add indirect row</div>
+            </div>
+
+            <div><div style="display:inline-flex;align-items:center;height:32px;border-radius:10px;background:oklch(0.205 0 0);color:oklch(0.985 0 0);padding:0 10px;font-size:14px;font-weight:500">Save week</div></div>
+          </div>
+
+          <div style="border-top:1px solid oklch(0.922 0 0);padding-top:16px">
+            <div style="display:inline-flex;align-items:center;height:32px;border-radius:10px;background:oklch(0.205 0 0);color:oklch(0.985 0 0);padding:0 10px;font-size:14px;font-weight:500">Submit week for approval</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APPROVALS ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b">/approvals · app/(app)/approvals/page.tsx</div>
+    <div style="width:1280px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;overflow:hidden;color:oklch(0.145 0 0)">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid oklch(0.922 0 0);padding:12px 24px">
+        <div style="display:flex;align-items:center;gap:20px">
+          <span style="font-weight:600;font-size:16px">HoldCo OS</span>
+          <nav style="display:flex;flex-wrap:wrap;gap:16px;font-size:14px;color:oklch(0.556 0 0)"><a href="#">Dashboard</a><a href="#">Timesheet</a><a href="#">Approvals</a><a href="#">Clients</a><a href="#">Projects</a><a href="#">Resources</a><a href="#">Indirect codes</a><a href="#">Entities</a><a href="#">Members</a></nav>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:240px;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px">Brooks Stevens Design Associates · manager<span style="color:oklch(0.556 0 0)">▾</span></div>
+          <span style="font-size:14px;color:oklch(0.556 0 0)">manager@example.com</span>
+          <div style="display:flex;align-items:center;justify-content:center;height:28px;border-radius:10px;border:1px solid oklch(0.922 0 0);background:#fff;padding:0 10px;font-size:12.8px;font-weight:500">Sign out</div>
+        </div>
+      </div>
+      <div style="max-width:1024px;margin:0 auto;padding:32px 24px">
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div>
+            <h1 style="margin:0;font-size:24px;line-height:1.33;font-weight:600;letter-spacing:-0.01em">Approvals</h1>
+            <p style="margin:0;font-size:16px;color:oklch(0.556 0 0)">Brooks Stevens Design Associates · submitted timesheets awaiting review.</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1);padding:16px 0;display:flex;flex-direction:column;gap:16px">
+              <div style="padding:0 16px;font-size:16px;font-weight:500">Ryan Hahn · week of 2026-07-27</div>
+              <div style="padding:0 16px;display:flex;flex-direction:column;gap:12px">
+                <p style="margin:0;font-size:14px;color:oklch(0.556 0 0)">5 entries · 40 hours</p>
+                <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px">
+                  <div style="display:inline-flex;align-items:center;height:32px;border-radius:10px;background:oklch(0.205 0 0);color:oklch(0.985 0 0);padding:0 10px;font-size:14px;font-weight:500">Approve</div>
+                  <div style="display:flex;align-items:flex-end;gap:8px">
+                    <div style="height:32px;width:224px;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;padding:0 10px;font-size:14px;color:oklch(0.556 0 0)">Reason for rejection</div>
+                    <div style="display:inline-flex;align-items:center;height:32px;border-radius:10px;border:1px solid oklch(0.922 0 0);padding:0 10px;font-size:14px;font-weight:500">Reject</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1);padding:16px 0;display:flex;flex-direction:column;gap:16px">
+              <div style="padding:0 16px;font-size:16px;font-weight:500">Justin Gasal · week of 2026-07-27</div>
+              <div style="padding:0 16px;display:flex;flex-direction:column;gap:12px">
+                <p style="margin:0;font-size:14px;color:oklch(0.556 0 0)">5 entries · 40 hours</p>
+                <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px">
+                  <div style="display:inline-flex;align-items:center;height:32px;border-radius:10px;background:oklch(0.205 0 0);color:oklch(0.985 0 0);padding:0 10px;font-size:14px;font-weight:500">Approve</div>
+                  <div style="display:flex;align-items:flex-end;gap:8px">
+                    <div style="height:32px;width:224px;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;padding:0 10px;font-size:14px;color:oklch(0.556 0 0)">Reason for rejection</div>
+                    <div style="display:inline-flex;align-items:center;height:32px;border-radius:10px;border:1px solid oklch(0.922 0 0);padding:0 10px;font-size:14px;font-weight:500">Reject</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PROJECTS ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b">/projects · app/(app)/projects/page.tsx</div>
+    <div style="width:1280px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;overflow:hidden;color:oklch(0.145 0 0)">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid oklch(0.922 0 0);padding:12px 24px">
+        <div style="display:flex;align-items:center;gap:20px">
+          <span style="font-weight:600;font-size:16px">HoldCo OS</span>
+          <nav style="display:flex;flex-wrap:wrap;gap:16px;font-size:14px;color:oklch(0.556 0 0)"><a href="#">Dashboard</a><a href="#">Timesheet</a><a href="#">Approvals</a><a href="#">Clients</a><a href="#">Projects</a><a href="#">Resources</a><a href="#">Indirect codes</a><a href="#">Entities</a><a href="#">Members</a></nav>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:240px;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px">Brooks Stevens Design Associates · owner<span style="color:oklch(0.556 0 0)">▾</span></div>
+          <span style="font-size:14px;color:oklch(0.556 0 0)">owner@example.com</span>
+          <div style="display:flex;align-items:center;justify-content:center;height:28px;border-radius:10px;border:1px solid oklch(0.922 0 0);background:#fff;padding:0 10px;font-size:12.8px;font-weight:500">Sign out</div>
+        </div>
+      </div>
+      <div style="max-width:1024px;margin:0 auto;padding:32px 24px">
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div>
+            <h1 style="margin:0;font-size:24px;line-height:1.33;font-weight:600;letter-spacing:-0.01em">Projects</h1>
+            <p style="margin:0;font-size:16px;color:oklch(0.556 0 0)">Brooks Stevens Design Associates</p>
+          </div>
+          <table style="width:100%;font-size:14px;border-collapse:collapse">
+            <thead>
+              <tr style="border-bottom:1px solid oklch(0.922 0 0)">
+                <th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Code</th>
+                <th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Name</th>
+                <th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Client</th>
+                <th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Type</th>
+                <th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Status</th>
+                <th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Contract</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">P-6041</td><td style="padding:8px">GermPass Development</td><td style="padding:8px;color:oklch(0.556 0 0)">MicroLumix (Bioscience Technologies)</td><td style="padding:8px">time_materials</td><td style="padding:8px">active</td><td style="padding:8px">$0.00</td></tr>
+              <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">P-6055</td><td style="padding:8px">Plow Platform</td><td style="padding:8px;color:oklch(0.556 0 0)">LeMans Corporation</td><td style="padding:8px">not_to_exceed</td><td style="padding:8px">active</td><td style="padding:8px">$125,000.00</td></tr>
+              <tr><td style="padding:8px;font-weight:500">P-6060</td><td style="padding:8px">Lighting Strategy</td><td style="padding:8px;color:oklch(0.556 0 0)">J.W. Speaker</td><td style="padding:8px">fixed_fee</td><td style="padding:8px">active</td><td style="padding:8px">$75,000.00</td></tr>
+            </tbody>
+          </table>
+          <div style="max-width:512px;background:#fff;border-radius:14px;box-shadow:0 0 0 1px oklch(0.145 0 0 / 0.1);padding:16px 0;display:flex;flex-direction:column;gap:16px">
+            <div style="padding:0 16px;font-size:16px;font-weight:500">New project</div>
+            <div style="padding:0 16px;display:flex;flex-direction:column;gap:16px">
+              <div style="display:flex;flex-direction:column;gap:8px"><label style="font-size:14px;font-weight:500">Client</label><div style="display:flex;align-items:center;justify-content:space-between;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px">MicroLumix (Bioscience Technologies)<span style="color:oklch(0.556 0 0)">▾</span></div></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:8px"><label style="font-size:14px;font-weight:500">Code</label><div style="height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;display:flex;align-items:center;padding:0 10px;font-size:14px;color:oklch(0.556 0 0)">P-1001</div></div>
+                <div style="display:flex;flex-direction:column;gap:8px"><label style="font-size:14px;font-weight:500">Name</label><div style="height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px"></div></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:8px"><label style="font-size:14px;font-weight:500">Type</label><div style="display:flex;align-items:center;justify-content:space-between;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px">time_materials<span style="color:oklch(0.556 0 0)">▾</span></div></div>
+                <div style="display:flex;flex-direction:column;gap:8px"><label style="font-size:14px;font-weight:500">Status</label><div style="display:flex;align-items:center;justify-content:space-between;height:32px;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:0 8px 0 10px;font-size:14px">active<span style="color:oklch(0.556 0 0)">▾</span></div></div>
+              </div>
+              <div style="display:inline-flex;width:fit-content;align-items:center;height:32px;border-radius:10px;background:oklch(0.205 0 0);color:oklch(0.985 0 0);padding:0 10px;font-size:14px;font-weight:500">Create project</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CLIENTS + RESOURCES + INDIRECT + ENTITIES ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b">/clients, /resources, /indirect-codes, /entities · content column only</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div style="width:628px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:24px;color:oklch(0.145 0 0)">
+        <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Clients</h1>
+        <p style="margin:0 0 24px;font-size:16px;color:oklch(0.556 0 0)">Brooks Stevens Design Associates</p>
+        <table style="width:100%;font-size:14px;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid oklch(0.922 0 0)"><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Name</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Status</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Billing terms</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">MicroLumix (Bioscience Technologies)</td><td style="padding:8px">active</td><td style="padding:8px;color:oklch(0.556 0 0)">—</td></tr>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">LeMans Corporation</td><td style="padding:8px">active</td><td style="padding:8px;color:oklch(0.556 0 0)">—</td></tr>
+            <tr><td style="padding:8px;font-weight:500">J.W. Speaker</td><td style="padding:8px">active</td><td style="padding:8px;color:oklch(0.556 0 0)">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="width:628px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:24px;color:oklch(0.145 0 0)">
+        <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Resources</h1>
+        <p style="margin:0 0 24px;font-size:16px;color:oklch(0.556 0 0)">Brooks Stevens Design Associates · billable people.</p>
+        <table style="width:100%;font-size:14px;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid oklch(0.922 0 0)"><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Name</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Title</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Bill rate</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Cost rate</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Target %</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">Jordan Principal</td><td style="padding:8px;color:oklch(0.556 0 0)">Principal</td><td style="padding:8px">$265.00/hr</td><td style="padding:8px">$120.00/hr</td><td style="padding:8px">60.00</td></tr>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">Ryan Hahn</td><td style="padding:8px;color:oklch(0.556 0 0)">Sr. Industrial Design</td><td style="padding:8px">$225.00/hr</td><td style="padding:8px">$90.00/hr</td><td style="padding:8px">80.00</td></tr>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">Justin Gasal</td><td style="padding:8px;color:oklch(0.556 0 0)">Engineer 2</td><td style="padding:8px">$200.00/hr</td><td style="padding:8px">$80.00/hr</td><td style="padding:8px">80.00</td></tr>
+            <tr><td style="padding:8px;font-weight:500">Casey Designer</td><td style="padding:8px;color:oklch(0.556 0 0)">Industrial Designer</td><td style="padding:8px">$185.00/hr</td><td style="padding:8px">$75.00/hr</td><td style="padding:8px">85.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="width:628px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:24px;color:oklch(0.145 0 0)">
+        <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Indirect codes</h1>
+        <p style="margin:0 0 24px;font-size:16px;color:oklch(0.556 0 0)">Brooks Stevens Design Associates · non-billable time buckets (overhead, PTO, BD…).</p>
+        <table style="width:100%;font-size:14px;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid oklch(0.922 0 0)"><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Code</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Category</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Description</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500">Active</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">OH</td><td style="padding:8px">overhead</td><td style="padding:8px;color:oklch(0.556 0 0)">Overhead</td><td style="padding:8px">Yes</td></tr>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">PTO</td><td style="padding:8px">pto</td><td style="padding:8px;color:oklch(0.556 0 0)">Paid time off</td><td style="padding:8px">Yes</td></tr>
+            <tr style="border-bottom:1px solid oklch(0.922 0 0)"><td style="padding:8px;font-weight:500">BD</td><td style="padding:8px">business_dev</td><td style="padding:8px;color:oklch(0.556 0 0)">Business development</td><td style="padding:8px">Yes</td></tr>
+            <tr><td style="padding:8px;font-weight:500">RND</td><td style="padding:8px">rnd</td><td style="padding:8px;color:oklch(0.556 0 0)">R&amp;D</td><td style="padding:8px">Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="width:628px;background:#fff;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:24px;color:oklch(0.145 0 0)">
+        <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em">Entities</h1>
+        <p style="margin:0 0 32px;font-size:16px;color:oklch(0.556 0 0)">The legal companies you belong to. You only see entities you're a member of.</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid oklch(0.922 0 0);border-radius:10px;padding:12px 16px"><span style="font-weight:500;font-size:16px">Brooks Stevens Design Associates</span><span style="font-size:14px;color:oklch(0.556 0 0)">owner</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

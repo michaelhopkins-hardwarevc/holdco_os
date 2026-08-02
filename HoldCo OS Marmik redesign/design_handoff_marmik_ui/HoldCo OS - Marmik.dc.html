@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/tokens/colors.css">
+<link rel="stylesheet" href="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/tokens/typography.css">
+<link rel="stylesheet" href="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/tokens/shape.css">
+<link rel="stylesheet" href="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/tokens/base.css">
+<link rel="stylesheet" href="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/styles.css">
+<script src="_ds/marmik-design-system-fb29e9ae-c5b0-4194-abfb-351ffe7b0d2b/_ds_bundle.js"></script>
+<style>
+  html, body { margin:0; background:#0C0E10; }
+  body {
+    font-family:'Inter',system-ui,sans-serif; color:#B9BEC4;
+    background-image:linear-gradient(rgba(255,255,255,.014) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px);
+    background-size:34px 34px;
+    -webkit-font-smoothing:antialiased;
+  }
+  a { color:#B9BEC4; text-decoration:none; transition:color 160ms cubic-bezier(.2,.6,.2,1); }
+  a:hover { color:#C4F03B; }
+  input { font-family:inherit; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:stretch">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside style="width:244px;flex:0 0 244px;background:var(--graphite);border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh">
+    <div style="padding:20px 18px 16px;border-bottom:1px solid var(--line)">
+      <x-import component-from-global-scope="MarmikDesignSystem_fb29e9.Logo" variant="lockup" size="26" hint-size="180px,30px"></x-import>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2);margin-top:12px">HoldCo OS &nbsp;·&nbsp; REV_02</div>
+    </div>
+
+    <button type="button" onClick="{{ cycleEntity }}" style="text-align:left;width:100%;background:transparent;border:0;border-bottom:1px solid var(--line);padding:14px 18px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px" style-hover="background:var(--steel)">
+      <span style="display:flex;flex-direction:column;gap:3px;min-width:0">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">// entity</span>
+        <span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13.5px;letter-spacing:-.01em;color:var(--bone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ entityName }}</span>
+      </span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--alum-2)">⇅</span>
+    </button>
+
+    <nav style="display:flex;flex-direction:column;gap:2px;padding:12px 10px;flex:1 1 auto;overflow-y:auto">
+      <sc-for list="{{ nav }}" as="item" hint-placeholder-count="8">
+        <button type="button" onClick="{{ item.go }}" style="display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:0;border-radius:8px;padding:8px 10px;cursor:pointer;font-family:'Inter',sans-serif;font-size:13.5px;transition:background 160ms cubic-bezier(.2,.6,.2,1),color 160ms cubic-bezier(.2,.6,.2,1);background:{{ item.bg }};color:{{ item.fg }}">
+          <x-import component-from-global-scope="MarmikDesignSystem_fb29e9.Icon" dc-props="{{ item.iconProps }}" hint-size="18px,18px"></x-import>
+          <span style="flex:1 1 auto">{{ item.label }}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:{{ item.countColor }}">{{ item.count }}</span>
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="border-top:1px solid var(--line);padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:26px;height:26px;border-radius:20px;border:1px solid var(--line);background:var(--steel);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--bone)">{{ userInitials }}</span>
+        <span style="display:flex;flex-direction:column;min-width:0">
+          <span style="font-size:12.5px;color:var(--bone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ userName }}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">{{ role }}</span>
+        </span>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">// status: {{ statusLine }}</div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div style="flex:1 1 auto;min-width:960px;display:flex;flex-direction:column">
+
+    <header style="height:56px;flex:0 0 56px;border-bottom:1px solid var(--line);background:rgba(12,14,16,.86);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 24px;position:sticky;top:0;z-index:5;backdrop-filter:saturate(140%)">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ crumb }}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex:0 0 auto">
+        <button type="button" onClick="{{ openCmd }}" style="display:flex;align-items:center;gap:10px;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--graphite);color:var(--alum-2);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;cursor:pointer;flex:0 0 auto;white-space:nowrap" style-hover="border-color:var(--alum-2);color:var(--bone)">
+          <span>SEARCH ANYTHING</span><span style="color:var(--alum-2)">⌘K</span>
+        </button>
+        <div style="display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex:0 0 auto;white-space:nowrap">
+          <sc-for list="{{ roleTabs }}" as="tab" hint-placeholder-count="3">
+            <button type="button" onClick="{{ tab.go }}" style="border:0;padding:0 11px;height:30px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;transition:background 160ms cubic-bezier(.2,.6,.2,1);background:{{ tab.bg }};color:{{ tab.fg }}">{{ tab.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </header>
+
+    <main style="flex:1 1 auto;padding:28px 32px 72px;max-width:1400px;width:100%">
+
+      <!-- ---------- TIMESHEET ---------- -->
+      <sc-if value="{{ isTimesheet }}" hint-placeholder-val="{{ true }}">
+        <div data-screen-label="Timesheet" style="display:flex;flex-direction:column;gap:22px">
+
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--acid)">// timesheet</div>
+              <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:31px;letter-spacing:-.02em;color:var(--bone)">Week of Jul 27</h1>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--alum-2)">RYAN HAHN &nbsp;·&nbsp; SR. INDUSTRIAL DESIGN &nbsp;·&nbsp; DRAFT</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button type="button" style="height:32px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--graphite);color:var(--alum);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;cursor:pointer" style-hover="border-color:var(--alum-2);color:var(--bone)">‹ PREV</button>
+              <button type="button" style="height:32px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--steel);color:var(--bone);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;cursor:pointer">THIS WEEK</button>
+              <button type="button" style="height:32px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--graphite);color:var(--alum);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;cursor:pointer" style-hover="border-color:var(--alum-2);color:var(--bone)">NEXT ›</button>
+            </div>
+          </div>
+
+          <!-- signals -->
+          <sc-if value="{{ hasSignals }}" hint-placeholder-val="{{ true }}">
+            <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--steel);flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <span style="width:7px;height:7px;border-radius:20px;background:var(--cyan);display:inline-block"></span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--bone)">Signals &nbsp;·&nbsp; {{ signalCount }} from 4 connected sources</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">{{ signalHours }} H PROPOSED</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <button type="button" onClick="{{ dismissAll }}" style="height:30px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--alum-2);font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer" style-hover="color:var(--bone);border-color:var(--alum-2)">Dismiss all</button>
+                  <button type="button" onClick="{{ acceptAll }}" style="height:30px;padding:0 14px;border:1.5px solid transparent;border-radius:6px;background:var(--acid);color:var(--carbon);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12.5px;cursor:pointer" style-hover="background:#d4ff4a">Accept all ›</button>
+                </div>
+              </div>
+              <div style="padding:4px 0">
+                <sc-for list="{{ signals }}" as="s" hint-placeholder-count="4">
+                  <div style="display:grid;grid-template-columns:64px 1fr 190px 62px 168px;align-items:center;gap:14px;padding:11px 16px;border-top:1px dashed var(--line)">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:{{ s.srcColor }};border:1px solid {{ s.srcLine }};border-radius:5px;padding:3px 6px;text-align:center">{{ s.source }}</span>
+                    <span style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                      <span style="font-size:13.5px;color:var(--bone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.evidence }}</span>
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--alum-2)">{{ s.meta }}</span>
+                    </span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--alum)">{{ s.target }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;color:var(--bone);text-align:right">{{ s.hours }}</span>
+                    <span style="display:flex;align-items:center;gap:7px;justify-content:flex-end">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.08em;color:var(--alum-2);width:42px;text-align:right">{{ s.confidence }}</span>
+                      <button type="button" onClick="{{ s.dismiss }}" style="height:26px;padding:0 9px;border:1px solid var(--line);border-radius:5px;background:transparent;color:var(--alum-2);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer" style-hover="color:var(--blaze);border-color:var(--blaze-line)">Skip</button>
+                      <button type="button" onClick="{{ s.accept }}" style="height:26px;padding:0 11px;border:1px solid var(--alum-2);border-radius:5px;background:transparent;color:var(--bone);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer" style-hover="border-color:var(--bone)">Log it</button>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- grid -->
+          <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+            <div style="display:grid;grid-template-columns:1fr repeat(5,86px) 86px;align-items:center;gap:0;padding:0 16px;height:42px;border-bottom:1px solid var(--line);background:var(--steel)">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">Charge</span>
+              <sc-for list="{{ dayHeads }}" as="d" hint-placeholder-count="5">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2);text-align:center">{{ d }}</span>
+              </sc-for>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2);text-align:right">Total</span>
+            </div>
+
+            <sc-if value="{{ gridEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:34px 16px;text-align:center;font-size:13.5px;color:var(--alum-2)">Nothing logged yet. Accept the signals above, or add a row by hand.</div>
+            </sc-if>
+
+            <sc-for list="{{ grid }}" as="row" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:1fr repeat(5,86px) 86px;align-items:center;padding:0 16px;height:48px;border-top:1px dashed var(--line)">
+                <span style="display:flex;align-items:center;gap:10px;min-width:0">
+                  <span style="width:2px;height:22px;background:{{ row.accent }};display:inline-block"></span>
+                  <span style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                    <span style="font-size:13.5px;color:var(--bone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.title }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.06em;color:var(--alum-2)">{{ row.sub }}</span>
+                  </span>
+                </span>
+                <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="5">
+                  <span style="display:flex;justify-content:center">
+                    <input type="number" step="0.25" min="0" value="{{ c.v }}" onChange="{{ c.set }}" style="width:62px;height:32px;text-align:center;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;background:{{ c.bg }};border:1px solid {{ c.line }};color:{{ c.fg }}">
+                  </span>
+                </sc-for>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--bone);text-align:right">{{ row.total }}</span>
+              </div>
+            </sc-for>
+
+            <div style="display:grid;grid-template-columns:1fr repeat(5,86px) 86px;align-items:center;padding:0 16px;height:46px;border-top:1px solid var(--line);background:var(--steel)">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">Daily total</span>
+              <sc-for list="{{ dayTotals }}" as="t" hint-placeholder-count="5">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:13.5px;text-align:center;color:{{ t.color }}">{{ t.v }}</span>
+              </sc-for>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;text-align:right;color:var(--bone)">{{ grandTotal }}</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:10px">
+              <button type="button" onClick="{{ addRow }}" style="height:34px;padding:0 13px;border:1px solid var(--line);border-radius:6px;background:var(--graphite);color:var(--alum);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer" style-hover="border-color:var(--alum-2);color:var(--bone)">+ Add row &nbsp; N</button>
+              <button type="button" onClick="{{ copyLast }}" style="height:34px;padding:0 13px;border:1px solid var(--line);border-radius:6px;background:var(--graphite);color:var(--alum);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer" style-hover="border-color:var(--alum-2);color:var(--bone)">Copy last week</button>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--alum-2)">{{ gapNote }}</span>
+            </div>
+            <button type="button" style="height:38px;padding:0 20px;border:1.5px solid transparent;border-radius:8px;background:var(--acid);color:var(--carbon);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;cursor:pointer" style-hover="background:#d4ff4a">Submit week ›</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px">
+            <sc-for list="{{ tsStats }}" as="st" hint-placeholder-count="4">
+              <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);padding:15px 16px;display:flex;flex-direction:column;gap:9px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">{{ st.k }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:500;color:var(--bone);line-height:1">{{ st.v }}</span>
+                <span style="height:2px;width:34px;background:{{ st.accent }};display:block"></span>
+                <span style="font-size:12px;color:var(--alum-2)">{{ st.note }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);padding:16px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">// connected sources</span>
+              <span style="font-size:13px;color:var(--alum)">Calendar, Linear, Figma and Git feed the signal engine. Nothing posts to a timesheet without you accepting it.</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <sc-for list="{{ sources }}" as="src" hint-placeholder-count="5">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:{{ src.color }};border:1px solid {{ src.line }};border-radius:5px;padding:5px 9px">{{ src.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ---------- DASHBOARD ---------- -->
+      <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Dashboard" style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--acid)">// {{ dashEyebrow }}</div>
+            <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:31px;letter-spacing:-.02em;color:var(--bone)">{{ dashTitle }}</h1>
+            <div style="font-size:14px;color:var(--alum);max-width:70ch;text-wrap:pretty">{{ dashBlurb }}</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px">
+            <sc-for list="{{ dashStats }}" as="st" hint-placeholder-count="4">
+              <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);padding:16px;display:flex;flex-direction:column;gap:10px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">{{ st.k }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:500;color:var(--bone);line-height:1">{{ st.v }}</span>
+                <span style="height:2px;width:36px;background:{{ st.accent }};display:block"></span>
+                <span style="font-size:12px;color:var(--alum-2)">{{ st.note }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1.45fr 1fr;gap:16px;align-items:start">
+            <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+              <div style="padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--bone)">{{ burnTitle }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">Hours used / budget</span>
+              </div>
+              <sc-for list="{{ burnRows }}" as="b" hint-placeholder-count="3">
+                <div style="padding:14px 16px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:9px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px">
+                    <span style="display:flex;align-items:baseline;gap:10px;min-width:0">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--alum-2)">{{ b.code }}</span>
+                      <span style="font-size:14px;color:var(--bone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.name }}</span>
+                    </span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:{{ b.color }};white-space:nowrap">{{ b.figure }}</span>
+                  </div>
+                  <span style="display:block;height:4px;background:var(--steel);border-radius:20px;overflow:hidden">
+                    <span style="display:block;height:4px;border-radius:20px;width:{{ b.pct }};background:{{ b.color }}"></span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+                <div style="background:var(--acid);color:var(--carbon);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:9px 14px;display:flex;justify-content:space-between">
+                  <span>{{ specLabel }}</span><span>REV_02</span>
+                </div>
+                <div style="padding:16px">
+                  <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;letter-spacing:-.02em;color:var(--bone)">{{ specTitle }}</div>
+                  <sc-for list="{{ specRows }}" as="r" hint-placeholder-count="5">
+                    <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--alum);border-top:1px dashed var(--line);padding:8px 0">
+                      <span>{{ r.k }}</span><span style="color:var(--bone)">{{ r.v }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+                <div style="padding:13px 16px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--bone)">Needs attention</div>
+                <sc-for list="{{ attention }}" as="a" hint-placeholder-count="3">
+                  <div style="padding:12px 16px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:11px">
+                    <span style="width:6px;height:6px;border-radius:20px;background:{{ a.color }};flex:0 0 auto"></span>
+                    <span style="flex:1 1 auto;font-size:13px;color:var(--alum)">{{ a.text }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--alum-2)">{{ a.tag }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ---------- APPROVALS ---------- -->
+      <sc-if value="{{ isApprovals }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Approvals" style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--acid)">// approvals</div>
+              <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:31px;letter-spacing:-.02em;color:var(--bone)">Four weeks waiting on you</h1>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--alum-2)">BROOKS STEVENS &nbsp;·&nbsp; WEEK OF JUL 27 &nbsp;·&nbsp; 152.5 H SUBMITTED</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--alum-2)">{{ selCount }} selected</span>
+              <button type="button" onClick="{{ rejectSel }}" style="height:34px;padding:0 14px;border:1.5px solid var(--alum-2);border-radius:8px;background:transparent;color:var(--bone);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;cursor:pointer" style-hover="border-color:var(--bone)">Send back</button>
+              <button type="button" onClick="{{ approveSel }}" style="height:34px;padding:0 16px;border:1.5px solid transparent;border-radius:8px;background:var(--acid);color:var(--carbon);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;cursor:pointer" style-hover="background:#d4ff4a">Approve selected ›</button>
+            </div>
+          </div>
+
+          <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+            <div style="display:grid;grid-template-columns:34px 1.4fr 108px 92px 92px 1fr 96px;align-items:center;padding:0 16px;height:42px;border-bottom:1px solid var(--line);background:var(--steel);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">
+              <span></span><span>Person</span><span style="text-align:right">Hours</span><span style="text-align:right">Billable</span><span style="text-align:right">Util</span><span style="padding-left:16px">Exceptions</span><span style="text-align:right">Status</span>
+            </div>
+            <sc-for list="{{ approvals }}" as="w" hint-placeholder-count="4">
+              <div onClick="{{ w.toggle }}" style="display:grid;grid-template-columns:34px 1.4fr 108px 92px 92px 1fr 96px;align-items:center;padding:0 16px;height:56px;border-top:1px dashed var(--line);cursor:pointer;background:{{ w.rowBg }}">
+                <span style="width:15px;height:15px;border-radius:4px;border:1px solid {{ w.boxLine }};background:{{ w.boxBg }};display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--carbon);font-weight:700">{{ w.check }}</span>
+                <span style="display:flex;flex-direction:column;gap:2px">
+                  <span style="font-size:14px;color:var(--bone)">{{ w.name }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.06em;color:var(--alum-2)">{{ w.title }}</span>
+                </span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--bone);text-align:right">{{ w.hours }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--alum);text-align:right">{{ w.billable }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:{{ w.utilColor }};text-align:right">{{ w.util }}</span>
+                <span style="padding-left:16px;display:flex;gap:7px;flex-wrap:wrap">
+                  <sc-for list="{{ w.flags }}" as="f" hint-placeholder-count="1">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:{{ f.color }};border:1px solid {{ f.line }};border-radius:5px;padding:3px 7px">{{ f.text }}</span>
+                  </sc-for>
+                </span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:{{ w.statusColor }};text-align:right">{{ w.status }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--alum-2)">Tip: A to approve, S to send back, J and K to move. Rows with no exceptions can be auto approved on Monday.</div>
+        </div>
+      </sc-if>
+
+      <!-- ---------- PROJECTS ---------- -->
+      <sc-if value="{{ isProjects }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Projects" style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--acid)">// projects</div>
+              <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:31px;letter-spacing:-.02em;color:var(--bone)">Three active, one at risk</h1>
+            </div>
+            <button type="button" style="height:36px;padding:0 18px;border:1.5px solid transparent;border-radius:8px;background:var(--acid);color:var(--carbon);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13.5px;cursor:pointer" style-hover="background:#d4ff4a">New project ›</button>
+          </div>
+          <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+            <div style="display:grid;grid-template-columns:86px 1.5fr 1.1fr 116px 1fr 120px 96px;align-items:center;padding:0 16px;height:42px;border-bottom:1px solid var(--line);background:var(--steel);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2)">
+              <span>Code</span><span>Project</span><span>Client</span><span>Type</span><span>Burn</span><span style="text-align:right">Contract</span><span style="text-align:right">Status</span>
+            </div>
+            <sc-for list="{{ projects }}" as="p" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:86px 1.5fr 1.1fr 116px 1fr 120px 96px;align-items:center;padding:0 16px;height:58px;border-top:1px dashed var(--line)">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--acid)">{{ p.code }}</span>
+                <span style="font-size:14px;color:var(--bone)">{{ p.name }}</span>
+                <span style="font-size:13px;color:var(--alum-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px">{{ p.client }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--alum-2)">{{ p.type }}</span>
+                <span style="display:flex;flex-direction:column;gap:6px;padding-right:20px">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:{{ p.color }}">{{ p.burnText }}</span>
+                  <span style="display:block;height:4px;background:var(--steel);border-radius:20px;overflow:hidden"><span style="display:block;height:4px;border-radius:20px;width:{{ p.pct }};background:{{ p.color }}"></span></span>
+                </span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--bone);text-align:right">{{ p.contract }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:{{ p.statusColor }};text-align:right">{{ p.status }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ---------- SIMPLE TABLE SCREENS ---------- -->
+      <sc-if value="{{ isTable }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Records" style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--acid)">// {{ tableEyebrow }}</div>
+              <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:31px;letter-spacing:-.02em;color:var(--bone)">{{ tableTitle }}</h1>
+              <div style="font-size:14px;color:var(--alum);max-width:70ch;text-wrap:pretty">{{ tableBlurb }}</div>
+            </div>
+            <button type="button" style="height:36px;padding:0 18px;border:1.5px solid transparent;border-radius:8px;background:var(--acid);color:var(--carbon);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13.5px;cursor:pointer" style-hover="background:#d4ff4a">{{ tableCta }}</button>
+          </div>
+          <div style="border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+            <div style="display:grid;grid-template-columns:{{ tableCols }};align-items:center;padding:0 16px;height:42px;border-bottom:1px solid var(--line);background:var(--steel)">
+              <sc-for list="{{ tableHead }}" as="h" hint-placeholder-count="4">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2);text-align:{{ h.align }}">{{ h.t }}</span>
+              </sc-for>
+            </div>
+            <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="4">
+              <div style="display:grid;grid-template-columns:{{ tableCols }};align-items:center;padding:0 16px;height:52px;border-top:1px dashed var(--line)">
+                <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+                  <span style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:14px;font-family:{{ c.font }};color:{{ c.color }};text-align:{{ c.align }}">{{ c.t }}</span>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+    </main>
+  </div>
+
+  <!-- ================= COMMAND PALETTE ================= -->
+  <sc-if value="{{ cmdOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeCmd }}" style="position:fixed;inset:0;background:rgba(12,14,16,.72);z-index:40;display:flex;align-items:flex-start;justify-content:center;padding-top:14vh">
+      <div style="width:620px;max-width:92vw;border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--acid)">›</span>
+          <span style="font-size:15px;color:var(--alum-2)">Log 4h to GermPass design</span>
+        </div>
+        <sc-for list="{{ cmdItems }}" as="c" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 18px;border-top:1px dashed var(--line)">
+            <span style="display:flex;align-items:center;gap:12px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--alum-2);border:1px solid var(--line);border-radius:5px;padding:3px 6px">{{ c.kind }}</span>
+              <span style="font-size:13.5px;color:var(--bone)">{{ c.label }}</span>
+            </span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--alum-2)">{{ c.hint }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:980}}">
+const DAYS = ['MON 27','TUE 28','WED 29','THU 30','FRI 31'];
+
+const SRC = {
+  CAL:   { color: 'var(--cyan)',  line: 'var(--cyan-line)' },
+  LINEAR:{ color: 'var(--alum)',  line: 'var(--line)' },
+  FIGMA: { color: 'var(--alum)',  line: 'var(--line)' },
+  GIT:   { color: 'var(--alum)',  line: 'var(--line)' }
+};
+
+const SIGNALS = [
+  { id: 's1', source: 'CAL',    evidence: 'GermPass design review with Chris Hickey', meta: 'MON 27 · 09:00 to 10:30 · 3 attendees', key: 'P-6041|Design',      target: 'P-6041 · Design',      day: 0, hours: 1.5, confidence: 'HIGH' },
+  { id: 's2', source: 'FIGMA',  evidence: '42 edits in GermPass Concepts',            meta: 'MON 27 · 4h 40m active in file',        key: 'P-6041|Design',      target: 'P-6041 · Design',      day: 0, hours: 4.5, confidence: 'HIGH' },
+  { id: 's3', source: 'LINEAR', evidence: 'BSD-214 housing draft moved to In Review', meta: 'TUE 28 · 1 issue · 6 comments',         key: 'P-6041|Design',      target: 'P-6041 · Design',      day: 1, hours: 6.0, confidence: 'MED' },
+  { id: 's4', source: 'CAL',    evidence: 'Plow platform standup',                    meta: 'WED 29 · 08:30 to 09:00 · recurring',   key: 'P-6055|Engineering', target: 'P-6055 · Engineering', day: 2, hours: 0.5, confidence: 'HIGH' },
+  { id: 's5', source: 'FIGMA',  evidence: 'Plow enclosure DFM markup',                meta: 'WED 29 · 5h 20m active in file',        key: 'P-6055|Engineering', target: 'P-6055 · Engineering', day: 2, hours: 5.5, confidence: 'HIGH' },
+  { id: 's6', source: 'CAL',    evidence: 'Studio all hands',                         meta: 'THU 30 · 11:00 to 12:00 · whole studio', key: 'OH|Overhead',       target: 'OH · Overhead',        day: 3, hours: 1.0, confidence: 'HIGH' },
+  { id: 's7', source: 'LINEAR', evidence: 'BSD-231 and BSD-233 closed',               meta: 'THU 30 · 2 issues · GermPass board',    key: 'P-6041|Design',      target: 'P-6041 · Design',      day: 3, hours: 6.5, confidence: 'MED' },
+  { id: 's8', source: 'GIT',    evidence: '12 commits to germpass-firmware',          meta: 'FRI 31 · 09:12 to 16:40',               key: 'P-6041|Deliver',     target: 'P-6041 · Deliver',     day: 4, hours: 6.0, confidence: 'MED' }
+];
+
+const ROW_META = {
+  'P-6041|Design':      { title: 'GermPass Development', sub: 'P-6041 · DESIGN · BILLABLE $225/HR',   accent: 'var(--acid)' },
+  'P-6041|Deliver':     { title: 'GermPass Development', sub: 'P-6041 · DELIVER · BILLABLE $225/HR',  accent: 'var(--acid)' },
+  'P-6055|Engineering': { title: 'Plow Platform',        sub: 'P-6055 · ENGINEERING · BILLABLE $225/HR', accent: 'var(--cyan)' },
+  'OH|Overhead':        { title: 'Overhead',             sub: 'OH · INDIRECT · NON BILLABLE',         accent: 'var(--alum-2)' }
+};
+
+const ENTITIES = ['Brooks Stevens Design Associates', 'Marmik HoldCo', 'Vault Products'];
+
+class Component extends DCLogic {
+  state = {
+    screen: 'timesheet',
+    role: 'staff',
+    entity: 0,
+    dismissed: [],
+    accepted: [],
+    hours: {},
+    fromSignal: {},
+    selected: ['w1', 'w2'],
+    cmdOpen: false
+  };
+
+  go = (screen) => () => this.setState({ screen });
+
+  acceptOne(s, st) {
+    const hours = { ...st.hours };
+    const fromSignal = { ...st.fromSignal };
+    const cur = hours[s.key] ? [...hours[s.key]] : [0, 0, 0, 0, 0];
+    cur[s.day] = Math.round((cur[s.day] + s.hours) * 100) / 100;
+    hours[s.key] = cur;
+    fromSignal[s.key + '|' + s.day] = true;
+    return { hours, fromSignal, accepted: [...st.accepted, s.id] };
+  }
+
+  render_grid() {
+    const keys = Object.keys(this.state.hours);
+    return keys.map((k) => {
+      const meta = ROW_META[k] || { title: k, sub: '', accent: 'var(--alum-2)' };
+      const vals = this.state.hours[k];
+      const total = vals.reduce((a, b) => a + b, 0);
+      return {
+        title: meta.title, sub: meta.sub, accent: meta.accent,
+        total: total ? total.toFixed(2) : '0.00',
+        cells: vals.map((v, i) => {
+          const tinted = this.state.fromSignal[k + '|' + i] && v > 0;
+          return {
+            v: v ? String(v) : '',
+            bg: tinted ? 'rgba(24,198,234,.07)' : 'var(--carbon)',
+            line: tinted ? 'var(--cyan-line)' : 'var(--line)',
+            fg: v ? 'var(--bone)' : 'var(--alum-2)',
+            set: (e) => {
+              const n = e.target.value === '' ? 0 : Number(e.target.value);
+              this.setState((st) => {
+                const hours = { ...st.hours };
+                const row = [...hours[k]];
+                row[i] = Number.isFinite(n) ? n : 0;
+                hours[k] = row;
+                return { hours };
+              });
+            }
+          };
+        })
+      };
+    });
+  }
+
+  dashFor(role) {
+    if (role === 'manager') {
+      return {
+        eyebrow: 'manager view',
+        title: 'Owned together, run better.',
+        blurb: 'Four timesheets to review, one project past 80 percent of budget. Everything below is scoped to Brooks Stevens.',
+        stats: [
+          { k: 'Awaiting review', v: '4', accent: 'var(--acid)',  note: '152.5 hours submitted' },
+          { k: 'Team utilization', v: '78%', accent: 'var(--cyan)', note: 'Target 80. Down 3 pts.' },
+          { k: 'Billable this week', v: '$29.4K', accent: 'var(--cyan)', note: '131 billable hours' },
+          { k: 'Missing time', v: '2', accent: 'var(--blaze)', note: 'Casey, Justin. Since Wed.' }
+        ],
+        burnTitle: 'Budget burn by project',
+        spec: {
+          label: 'SPEC // WEEK',
+          title: 'Week of Jul 27',
+          rows: [
+            { k: 'SUBMITTED', v: '152.5 H' }, { k: 'BILLABLE', v: '131.0 H' },
+            { k: 'INDIRECT', v: '21.5 H' }, { k: 'REALIZATION', v: '94%' },
+            { k: 'AVG SUBMIT LAG', v: '1.2 DAYS' }
+          ]
+        },
+        attention: [
+          { text: 'Plow Platform is at 84 percent of its not to exceed', color: 'var(--blaze)', tag: 'P-6055' },
+          { text: 'Casey Designer has logged nothing since Wednesday', color: 'var(--blaze)', tag: 'NUDGE' },
+          { text: 'Three weeks are clean and can be auto approved', color: 'var(--cyan)', tag: 'BULK' }
+        ]
+      };
+    }
+    if (role === 'principal') {
+      return {
+        eyebrow: 'principal view',
+        title: 'Venture returns from simple businesses.',
+        blurb: 'Rolled up across all three entities. Operating numbers only. QuickBooks stays the book of record.',
+        stats: [
+          { k: 'Backlog', v: '$1.24M', accent: 'var(--acid)', note: 'Across 3 entities' },
+          { k: 'Utilization', v: '76%', accent: 'var(--cyan)', note: 'Blended, trailing 4 weeks' },
+          { k: 'Effective rate', v: '$196', accent: 'var(--cyan)', note: 'Per billable hour' },
+          { k: 'Cash days', v: '64', accent: 'var(--alum-2)', note: 'Unbilled WIP plus AR' }
+        ],
+        burnTitle: 'Contract burn, all entities',
+        spec: {
+          label: 'SPEC // HOLDCO',
+          title: 'Trailing 13 weeks',
+          rows: [
+            { k: 'ENTITIES', v: '3' }, { k: 'BILLABLE HRS', v: '4,180' },
+            { k: 'REVENUE', v: '$819K' }, { k: 'DIRECT COST', v: '$342K' },
+            { k: 'GROSS MARGIN', v: '58%' }
+          ]
+        },
+        attention: [
+          { text: 'Brooks Stevens is carrying the utilization average', color: 'var(--cyan)', tag: 'BSD' },
+          { text: 'Vault Products has no time entered this quarter', color: 'var(--blaze)', tag: 'VAULT' },
+          { text: 'Lighting Strategy fixed fee is 22 points under', color: 'var(--acid)', tag: 'P-6060' }
+        ]
+      };
+    }
+    return {
+      eyebrow: 'my week',
+      title: 'Build cool shit. Make it pay.',
+      blurb: 'Your hours, your projects, and what the signal engine already found for you. Nothing is logged until you accept it.',
+      stats: [
+        { k: 'Logged this week', v: '31.5', accent: 'var(--acid)', note: '8.5 hours short of 40' },
+        { k: 'Billable share', v: '96%', accent: 'var(--cyan)', note: 'Target 80. Well over.' },
+        { k: 'Signals waiting', v: '8', accent: 'var(--cyan)', note: 'From calendar, Figma, Linear, Git' },
+        { k: 'Streak', v: '6 WK', accent: 'var(--alum-2)', note: 'Submitted on time' }
+      ],
+      burnTitle: 'My projects this week',
+      spec: {
+        label: 'SPEC // ME',
+        title: 'Ryan Hahn',
+        rows: [
+          { k: 'TITLE', v: 'SR. INDUSTRIAL DESIGN' }, { k: 'BILL RATE', v: '$225.00/HR' },
+          { k: 'COST RATE', v: '$90.00/HR' }, { k: 'TARGET UTIL', v: '80%' },
+          { k: 'ENTITY', v: 'BROOKS STEVENS' }
+        ]
+      },
+      attention: [
+        { text: 'Friday afternoon has no time against it', color: 'var(--blaze)', tag: '3.5 H' },
+        { text: 'Two Linear issues closed with no time logged', color: 'var(--cyan)', tag: 'SIGNAL' },
+        { text: 'Submit by Monday 10am to stay on the streak', color: 'var(--acid)', tag: 'DUE' }
+      ]
+    };
+  }
+
+  tableFor(screen) {
+    const mono = "'JetBrains Mono',monospace";
+    const sans = "'Inter',sans-serif";
+    const cell = (t, o) => ({ t, font: (o && o.font) || sans, color: (o && o.color) || 'var(--bone)', align: (o && o.align) || 'left' });
+    const dim = { color: 'var(--alum-2)' };
+    const m = { font: mono, color: 'var(--alum)' };
+    const mr = { font: mono, color: 'var(--bone)', align: 'right' };
+
+    if (screen === 'clients') {
+      return {
+        eyebrow: 'clients', title: 'Three clients, all active', cta: 'New client ›',
+        blurb: 'Who we work for. Contacts and billing terms live here, invoices live in QuickBooks.',
+        cols: '1.6fr 1fr 130px 130px 120px',
+        head: [{ t: 'Client', align: 'left' }, { t: 'Primary contact', align: 'left' }, { t: 'Terms', align: 'left' }, { t: 'Open WIP', align: 'right' }, { t: 'Status', align: 'right' }],
+        rows: [
+          { cells: [cell('MicroLumix (Bioscience Technologies)'), cell('Chris Hickey, Program Lead', dim), cell('NET 30', m), cell('$41,300', mr), cell('ACTIVE', { font: mono, color: 'var(--acid)', align: 'right' })] },
+          { cells: [cell('LeMans Corporation'), cell('Paul Langley, Executive Sponsor', dim), cell('NET 45', m), cell('$28,900', mr), cell('ACTIVE', { font: mono, color: 'var(--acid)', align: 'right' })] },
+          { cells: [cell('J.W. Speaker'), cell('Dana Lighting, Dir. of Engineering', dim), cell('NET 30', m), cell('$12,500', mr), cell('ACTIVE', { font: mono, color: 'var(--acid)', align: 'right' })] }
+        ]
+      };
+    }
+    if (screen === 'resources') {
+      return {
+        eyebrow: 'resources', title: 'Four billable people', cta: 'New resource ›',
+        blurb: 'Rates and targets. Link a resource to a user so that person can enter time. Deactivated people keep their history.',
+        cols: '1.3fr 1.2fr 110px 110px 90px 1fr 110px',
+        head: [{ t: 'Name', align: 'left' }, { t: 'Title', align: 'left' }, { t: 'Bill', align: 'right' }, { t: 'Cost', align: 'right' }, { t: 'Target', align: 'right' }, { t: 'Utilization, 4 wk', align: 'left' }, { t: 'Status', align: 'right' }],
+        rows: [
+          { cells: [cell('Jordan Principal'), cell('Principal', dim), cell('$265.00', mr), cell('$120.00', mr), cell('60%', mr), cell('58%', { font: mono, color: 'var(--alum)' }), cell('ACTIVE', { font: mono, color: 'var(--acid)', align: 'right' })] },
+          { cells: [cell('Ryan Hahn'), cell('Sr. Industrial Design', dim), cell('$225.00', mr), cell('$90.00', mr), cell('80%', mr), cell('91%', { font: mono, color: 'var(--cyan)' }), cell('ACTIVE', { font: mono, color: 'var(--acid)', align: 'right' })] },
+          { cells: [cell('Justin Gasal'), cell('Engineer 2', dim), cell('$200.00', mr), cell('$80.00', mr), cell('80%', mr), cell('74%', { font: mono, color: 'var(--alum)' }), cell('ACTIVE', { font: mono, color: 'var(--acid)', align: 'right' })] },
+          { cells: [cell('Casey Designer'), cell('Industrial Designer', dim), cell('$185.00', mr), cell('$75.00', mr), cell('85%', mr), cell('62%', { font: mono, color: 'var(--blaze)' }), cell('ACTIVE', { font: mono, color: 'var(--acid)', align: 'right' })] }
+        ]
+      };
+    }
+    if (screen === 'indirect') {
+      return {
+        eyebrow: 'indirect codes', title: 'Where the non billable time goes', cta: 'New code ›',
+        blurb: 'Overhead buckets. Every hour that is not on a project lands in one of these, so utilization means something.',
+        cols: '110px 180px 1.6fr 150px 110px',
+        head: [{ t: 'Code', align: 'left' }, { t: 'Category', align: 'left' }, { t: 'Description', align: 'left' }, { t: 'Hours, 4 wk', align: 'right' }, { t: 'Active', align: 'right' }],
+        rows: [
+          { cells: [cell('OH', { font: mono, color: 'var(--acid)' }), cell('overhead', m), cell('Overhead', dim), cell('184.0', mr), cell('YES', { font: mono, color: 'var(--alum)', align: 'right' })] },
+          { cells: [cell('PTO', { font: mono, color: 'var(--acid)' }), cell('pto', m), cell('Paid time off', dim), cell('96.0', mr), cell('YES', { font: mono, color: 'var(--alum)', align: 'right' })] },
+          { cells: [cell('BD', { font: mono, color: 'var(--acid)' }), cell('business_dev', m), cell('Business development', dim), cell('72.5', mr), cell('YES', { font: mono, color: 'var(--alum)', align: 'right' })] },
+          { cells: [cell('RND', { font: mono, color: 'var(--acid)' }), cell('rnd', m), cell('R&D', dim), cell('40.0', mr), cell('YES', { font: mono, color: 'var(--alum)', align: 'right' })] },
+          { cells: [cell('TRN', { font: mono, color: 'var(--acid)' }), cell('training', m), cell('Training', dim), cell('16.0', mr), cell('YES', { font: mono, color: 'var(--alum)', align: 'right' })] }
+        ]
+      };
+    }
+    return {
+      eyebrow: 'entities', title: 'Three companies, one back office', cta: 'New entity ›',
+      blurb: 'The legal companies you belong to. You only see entities you are a member of, and every list on every screen is scoped to the one you pick.',
+      cols: '1.5fr 1fr 130px 130px 130px 110px',
+      head: [{ t: 'Entity', align: 'left' }, { t: 'Legal name', align: 'left' }, { t: 'Type', align: 'left' }, { t: 'People', align: 'right' }, { t: 'Your role', align: 'right' }, { t: 'Status', align: 'right' }],
+      rows: [
+        { cells: [cell('Brooks Stevens Design Associates'), cell('Brooks Stevens, Inc.', dim), cell('SERVICES', m), cell('4', mr), cell('OWNER', { font: mono, color: 'var(--acid)', align: 'right' }), cell('ACTIVE', { font: mono, color: 'var(--alum)', align: 'right' })] },
+        { cells: [cell('Marmik HoldCo'), cell('Marmik LLC', dim), cell('HOLDCO', m), cell('2', mr), cell('OWNER', { font: mono, color: 'var(--acid)', align: 'right' }), cell('ACTIVE', { font: mono, color: 'var(--alum)', align: 'right' })] },
+        { cells: [cell('Vault Products'), cell('Vault Products LLC', dim), cell('PRODUCT', m), cell('1', mr), cell('ADMIN', { font: mono, color: 'var(--alum)', align: 'right' }), cell('ACTIVE', { font: mono, color: 'var(--alum)', align: 'right' })] }
+      ]
+    };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const screen = st.screen;
+    const isTableScreen = ['clients', 'resources', 'indirect', 'entities'].includes(screen);
+
+    const navDefs = [
+      { id: 'dashboard', label: 'Dashboard', icon: 'apex', count: '' },
+      { id: 'timesheet', label: 'Timesheet', icon: 'speed', count: '8' },
+      { id: 'approvals', label: 'Approvals', icon: 'hold', count: '4' },
+      { id: 'projects', label: 'Projects', icon: 'portfolio', count: '3' },
+      { id: 'clients', label: 'Clients', icon: 'terrain', count: '3' },
+      { id: 'resources', label: 'Resources', icon: 'build', count: '4' },
+      { id: 'indirect', label: 'Indirect codes', icon: 'spec', count: '8' },
+      { id: 'entities', label: 'Entities', icon: 'exit', count: '3' }
+    ];
+
+    const nav = navDefs.map((n) => {
+      const on = n.id === screen;
+      return {
+        label: n.label, count: n.count,
+        bg: on ? 'var(--steel)' : 'transparent',
+        fg: on ? 'var(--bone)' : 'var(--alum)',
+        countColor: on ? 'var(--acid)' : 'var(--alum-2)',
+        iconProps: { name: n.icon, size: 18, color: on ? 'var(--bone)' : 'var(--alum-2)' },
+        go: this.go(n.id)
+      };
+    });
+
+    const roleTabs = ['staff', 'manager', 'principal'].map((r) => ({
+      label: r,
+      bg: r === st.role ? 'var(--steel)' : 'transparent',
+      fg: r === st.role ? 'var(--bone)' : 'var(--alum-2)',
+      go: () => this.setState({ role: r })
+    }));
+
+    const live = SIGNALS.filter((s) => !st.accepted.includes(s.id) && !st.dismissed.includes(s.id));
+    const signals = live.map((s) => ({
+      source: s.source, evidence: s.evidence, meta: s.meta, target: s.target,
+      hours: s.hours.toFixed(2), confidence: s.confidence,
+      srcColor: SRC[s.source].color, srcLine: SRC[s.source].line,
+      accept: () => this.setState((cur) => this.acceptOne(s, cur)),
+      dismiss: () => this.setState((cur) => ({ dismissed: [...cur.dismissed, s.id] }))
+    }));
+
+    const grid = this.render_grid();
+    const dayTotals = [0, 1, 2, 3, 4].map((i) => {
+      const v = Object.values(st.hours).reduce((a, row) => a + (row[i] || 0), 0);
+      return { v: v ? v.toFixed(2) : '0.00', color: v >= 8 ? 'var(--bone)' : v > 0 ? 'var(--alum)' : 'var(--alum-2)' };
+    });
+    const grand = Object.values(st.hours).reduce((a, row) => a + row.reduce((x, y) => x + y, 0), 0);
+    const gap = Math.round((40 - grand) * 100) / 100;
+
+    const dash = this.dashFor(st.role);
+    const table = isTableScreen ? this.tableFor(screen) : null;
+
+    const approvalDefs = [
+      { id: 'w1', name: 'Ryan Hahn', title: 'SR. INDUSTRIAL DESIGN', hours: '40.00', billable: '38.5', util: '96%', utilColor: 'var(--cyan)', flags: [], status: 'CLEAN' },
+      { id: 'w2', name: 'Justin Gasal', title: 'ENGINEER 2', hours: '38.50', billable: '30.5', util: '79%', utilColor: 'var(--alum)', flags: [], status: 'CLEAN' },
+      { id: 'w3', name: 'Casey Designer', title: 'INDUSTRIAL DESIGNER', hours: '26.00', billable: '18.0', util: '69%', utilColor: 'var(--blaze)', flags: [{ text: 'Under 40 h' }, { text: 'No Friday' }], status: 'REVIEW' },
+      { id: 'w4', name: 'Jordan Principal', title: 'PRINCIPAL', hours: '48.00', billable: '16.0', util: '33%', utilColor: 'var(--blaze)', flags: [{ text: 'Over 45 h' }], status: 'REVIEW' }
+    ];
+    const approvals = approvalDefs.map((w) => {
+      const on = st.selected.includes(w.id);
+      return {
+        name: w.name, title: w.title, hours: w.hours, billable: w.billable, util: w.util,
+        utilColor: w.utilColor, status: w.status,
+        statusColor: w.status === 'CLEAN' ? 'var(--alum-2)' : 'var(--blaze)',
+        rowBg: on ? 'rgba(196,240,59,.035)' : 'transparent',
+        boxBg: on ? 'var(--acid)' : 'transparent',
+        boxLine: on ? 'var(--acid)' : 'var(--line)',
+        check: on ? '✓' : '',
+        flags: w.flags.map((f) => ({ text: f.text, color: 'var(--blaze)', line: 'var(--blaze-line)' })),
+        toggle: () => this.setState((cur) => ({
+          selected: cur.selected.includes(w.id) ? cur.selected.filter((x) => x !== w.id) : [...cur.selected, w.id]
+        }))
+      };
+    });
+
+    const burnStaff = [
+      { code: 'P-6041', name: 'GermPass Development', figure: '18.5 / 240 h', pct: '8%', color: 'var(--acid)' },
+      { code: 'P-6055', name: 'Plow Platform', figure: '6.0 / 300 h', pct: '2%', color: 'var(--cyan)' },
+      { code: 'OH', name: 'Overhead', figure: '1.0 h', pct: '3%', color: 'var(--alum-2)' }
+    ];
+    const burnTeam = [
+      { code: 'P-6041', name: 'GermPass Development', figure: '212 / 440 h', pct: '48%', color: 'var(--cyan)' },
+      { code: 'P-6055', name: 'Plow Platform', figure: '386 / 460 h', pct: '84%', color: 'var(--blaze)' },
+      { code: 'P-6060', name: 'Lighting Strategy', figure: '84 / 220 h', pct: '38%', color: 'var(--cyan)' }
+    ];
+
+    return {
+      // shell
+      nav, roleTabs, role: st.role.toUpperCase(),
+      entityName: ENTITIES[st.entity],
+      cycleEntity: () => this.setState((cur) => ({ entity: (cur.entity + 1) % ENTITIES.length })),
+      userName: st.role === 'principal' ? 'Alex Owner' : st.role === 'manager' ? 'Morgan Manager' : 'Ryan Hahn',
+      userInitials: st.role === 'principal' ? 'AO' : st.role === 'manager' ? 'MM' : 'RH',
+      statusLine: st.role === 'principal' ? 'compounding' : st.role === 'manager' ? 'reviewing' : 'logging',
+      crumb: ENTITIES[st.entity].toUpperCase() + '  /  ' + (isTableScreen ? screen : screen).toUpperCase(),
+      cmdOpen: st.cmdOpen,
+      openCmd: () => this.setState({ cmdOpen: true }),
+      closeCmd: () => this.setState({ cmdOpen: false }),
+      cmdItems: [
+        { kind: 'log', label: 'Log 4.00 h to P-6041 · Design, today', hint: 'ENTER' },
+        { kind: 'signal', label: 'Accept all 8 signals for this week', hint: '⇧ ENTER' },
+        { kind: 'go', label: 'Open Plow Platform, P-6055', hint: 'G then P' },
+        { kind: 'do', label: 'Submit week of Jul 27', hint: '⌘ S' },
+        { kind: 'switch', label: 'Switch entity to Marmik HoldCo', hint: '⌘ E' }
+      ],
+
+      // routing
+      isTimesheet: screen === 'timesheet',
+      isDashboard: screen === 'dashboard',
+      isApprovals: screen === 'approvals',
+      isProjects: screen === 'projects',
+      isTable: isTableScreen,
+
+      // timesheet
+      signals, hasSignals: signals.length > 0,
+      signalCount: String(signals.length),
+      signalHours: live.reduce((a, s) => a + s.hours, 0).toFixed(1),
+      acceptAll: () => this.setState((cur) => {
+        let next = { hours: cur.hours, fromSignal: cur.fromSignal, accepted: cur.accepted };
+        SIGNALS.filter((s) => !cur.accepted.includes(s.id) && !cur.dismissed.includes(s.id))
+          .forEach((s) => { next = this.acceptOne(s, next); });
+        return next;
+      }),
+      dismissAll: () => this.setState({ dismissed: SIGNALS.map((s) => s.id) }),
+      dayHeads: DAYS,
+      grid, gridEmpty: grid.length === 0,
+      dayTotals, grandTotal: grand.toFixed(2),
+      gapNote: gap > 0 ? gap.toFixed(2) + ' h short of a 40 h week' : 'Week is complete',
+      addRow: () => this.setState((cur) => cur.hours['OH|Overhead'] ? {} : { hours: { ...cur.hours, 'OH|Overhead': [0, 0, 0, 0, 0] } }),
+      copyLast: () => this.setState({
+        hours: { 'P-6041|Design': [8, 8, 8, 8, 8] },
+        fromSignal: {}
+      }),
+      tsStats: [
+        { k: 'Logged', v: grand.toFixed(2), accent: 'var(--acid)', note: gap > 0 ? gap.toFixed(2) + ' h to target' : 'At target' },
+        { k: 'Billable', v: '96%', accent: 'var(--cyan)', note: 'Target 80%' },
+        { k: 'Value', v: '$7,088', accent: 'var(--cyan)', note: 'At $225.00/hr' },
+        { k: 'Submit by', v: 'MON 10:00', accent: 'var(--alum-2)', note: '6 week on time streak' }
+      ],
+      sources: [
+        { label: 'Calendar', color: 'var(--cyan)', line: 'var(--cyan-line)' },
+        { label: 'Linear', color: 'var(--alum)', line: 'var(--line)' },
+        { label: 'Figma', color: 'var(--alum)', line: 'var(--line)' },
+        { label: 'Git', color: 'var(--alum)', line: 'var(--line)' },
+        { label: '+ Add source', color: 'var(--alum-2)', line: 'var(--line)' }
+      ],
+
+      // dashboard
+      dashEyebrow: dash.eyebrow, dashTitle: dash.title, dashBlurb: dash.blurb,
+      dashStats: dash.stats, burnTitle: dash.burnTitle,
+      burnRows: st.role === 'staff' ? burnStaff : burnTeam,
+      specLabel: dash.spec.label, specTitle: dash.spec.title, specRows: dash.spec.rows,
+      attention: dash.attention,
+
+      // approvals
+      approvals, selCount: String(st.selected.length),
+      approveSel: () => this.setState({ selected: [] }),
+      rejectSel: () => this.setState({ selected: [] }),
+
+      // projects
+      projects: [
+        { code: 'P-6041', name: 'GermPass Development', client: 'MicroLumix (Bioscience Technologies)', type: 'T & M', burnText: '212 / 440 H · 48%', pct: '48%', color: 'var(--cyan)', contract: 'OPEN', status: 'ACTIVE', statusColor: 'var(--alum-2)' },
+        { code: 'P-6055', name: 'Plow Platform', client: 'LeMans Corporation', type: 'NOT TO EXCEED', burnText: '386 / 460 H · 84%', pct: '84%', color: 'var(--blaze)', contract: '$125,000', status: 'AT RISK', statusColor: 'var(--blaze)' },
+        { code: 'P-6060', name: 'Lighting Strategy', client: 'J.W. Speaker', type: 'FIXED FEE', burnText: '84 / 220 H · 38%', pct: '38%', color: 'var(--cyan)', contract: '$75,000', status: 'ACTIVE', statusColor: 'var(--alum-2)' }
+      ],
+
+      // generic tables
+      tableEyebrow: table ? table.eyebrow : '',
+      tableTitle: table ? table.title : '',
+      tableBlurb: table ? table.blurb : '',
+      tableCta: table ? table.cta : '',
+      tableCols: table ? table.cols : '1fr',
+      tableHead: table ? table.head.map((h) => ({ t: h.t, align: h.align })) : [],
+      tableRows: table ? table.rows : []
+    };
+  }
+}
+</script>
+</body>
+</html>

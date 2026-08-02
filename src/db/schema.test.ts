@@ -33,8 +33,8 @@ describe("migration", () => {
     );
     const names = rows.map((r) => r.table_name);
 
-    // 5 core + 12 Phase 1 + 20 later-phase scaffolding = 37.
-    expect(names).toHaveLength(37);
+    // 5 core + 12 Phase 1 + 20 later-phase scaffolding + 2 signals = 39.
+    expect(names).toHaveLength(39);
     for (const t of [
       "organization",
       "entity",
@@ -68,7 +68,7 @@ describe("migration", () => {
        join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r'`,
     );
-    expect(rows.length).toBe(37);
+    expect(rows.length).toBe(39);
     const withoutRls = rows.filter((r) => !r.relrowsecurity).map((r) => r.relname);
     expect(withoutRls).toEqual([]);
   });

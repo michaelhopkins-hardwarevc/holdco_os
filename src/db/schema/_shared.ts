@@ -83,6 +83,19 @@ export const indirectCategory = pgEnum("indirect_category", [
 
 export const vehicleType = pgEnum("vehicle_type", ["spv", "fund"]);
 
+// Signals (timesheet auto-population).
+export const signalState = pgEnum("signal_state", [
+  "open",
+  "accepted",
+  "dismissed",
+]);
+
+export const signalConfidence = pgEnum("signal_confidence", [
+  "high",
+  "med",
+  "low",
+]);
+
 // ---------------------------------------------------------------------------
 // Standard audit columns carried by every domain table (CLAUDE.md §5.2).
 // Returned from a function so each table gets fresh column builders.
