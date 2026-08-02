@@ -16,6 +16,7 @@ import {
   phase,
   project,
   resource,
+  signal,
   timeEntry,
   user,
 } from "@/db/schema";
@@ -253,6 +254,45 @@ export function getWeekEntries(
         isNull(timeEntry.deletedAt),
       ),
     );
+}
+
+/** Open signals for a resource within a date range, with charge labels. */
+export function listOpenSignals(
+  db: QueryDb,
+  entityId: string,
+  resourceId: string,
+  start: string,
+  end: string,
+) {
+  return db
+    .select({
+      id: signal.id,
+      workDate: signal.workDate,
+      provider: signal.provider,
+      evidence: signal.evidence,
+      provenance: signal.provenance,
+      chargeType: signal.chargeType,
+      proposedHours: signal.proposedHours,
+      confidence: signal.confidence,
+      projectCode: project.code,
+      phaseName: phase.name,
+      indirectCodeLabel: indirectCode.code,
+    })
+    .from(signal)
+    .leftJoin(project, eq(project.id, signal.projectId))
+    .leftJoin(phase, eq(phase.id, signal.phaseId))
+    .leftJoin(indirectCode, eq(indirectCode.id, signal.indirectCodeId))
+    .where(
+      and(
+        eq(signal.entityId, entityId),
+        eq(signal.resourceId, resourceId),
+        eq(signal.state, "open"),
+        gte(signal.workDate, start),
+        lte(signal.workDate, end),
+        isNull(signal.deletedAt),
+      ),
+    )
+    .orderBy(asc(signal.workDate));
 }
 
 /** Submitted time entries across the entity (for the approvals queue). */

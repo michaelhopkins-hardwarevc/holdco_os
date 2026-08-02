@@ -3,6 +3,13 @@ import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { TimesheetGrid, type GridRow } from "@/components/timesheet-grid";
 import { runWithUser } from "@/db/rls";
+import {
+  acceptAllSignalsAction,
+  acceptSignalAction,
+  dismissAllSignalsAction,
+  dismissSignalAction,
+  generateSampleSignals,
+} from "@/lib/actions/signals";
 import { submitWeek } from "@/lib/actions/timesheet";
 import { requireActiveEntity } from "@/lib/auth";
 import {
@@ -10,6 +17,7 @@ import {
   getWeekEntries,
   listEntityPhases,
   listIndirectCodes,
+  listOpenSignals,
   listProjects,
 } from "@/lib/queries";
 import {
@@ -40,6 +48,7 @@ export default async function TimesheetPage({
       projects: await listProjects(tx, active.entityId),
       phases: await listEntityPhases(tx, active.entityId),
       codes: await listIndirectCodes(tx, active.entityId, { activeOnly: true }),
+      signals: await listOpenSignals(tx, active.entityId, res.id, week.start, week.end),
     };
   });
 
@@ -56,7 +65,7 @@ export default async function TimesheetPage({
     );
   }
 
-  const { res, entries, projects, phases, codes } = data;
+  const { res, entries, projects, phases, codes, signals } = data;
 
   const rowMap = new Map<string, GridRow>();
   const statuses: TimeEntryStatus[] = [];
@@ -129,6 +138,98 @@ export default async function TimesheetPage({
           This week is <strong>{status}</strong> and locked. A manager must
           reject it before it can be edited again.
         </p>
+      )}
+
+      {editable && (
+        <section className="rounded-lg border">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted px-4 py-3">
+            <div className="text-sm font-medium">
+              Signals · {signals.length} proposed
+              <span className="ml-2 font-normal text-muted-foreground">
+                from your connected tools
+              </span>
+            </div>
+            {signals.length > 0 && (
+              <div className="flex items-center gap-2">
+                <form action={dismissAllSignalsAction}>
+                  <input type="hidden" name="entityId" value={active.entityId} />
+                  <input type="hidden" name="resourceId" value={res.id} />
+                  <input type="hidden" name="weekStart" value={week.start} />
+                  <Button type="submit" variant="ghost" size="sm">
+                    Dismiss all
+                  </Button>
+                </form>
+                <form action={acceptAllSignalsAction}>
+                  <input type="hidden" name="entityId" value={active.entityId} />
+                  <input type="hidden" name="resourceId" value={res.id} />
+                  <input type="hidden" name="weekStart" value={week.start} />
+                  <Button type="submit" size="sm">
+                    Accept all
+                  </Button>
+                </form>
+              </div>
+            )}
+          </div>
+
+          {signals.length === 0 ? (
+            <div className="flex flex-col items-start gap-3 px-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                No signals yet. Once your calendar and tools are connected,
+                proposed hours show up here to accept or skip — nothing posts
+                without you accepting it. For now, generate a few samples to try
+                the flow.
+              </p>
+              <form action={generateSampleSignals}>
+                <input type="hidden" name="entityId" value={active.entityId} />
+                <input type="hidden" name="resourceId" value={res.id} />
+                <input type="hidden" name="weekStart" value={week.start} />
+                <Button type="submit" variant="outline" size="sm">
+                  Generate sample signals
+                </Button>
+              </form>
+            </div>
+          ) : (
+            signals.map((s) => (
+              <div
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                      {s.provider}
+                    </span>
+                    <span className="font-medium">{s.evidence}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {s.provenance ? `${s.provenance} · ` : ""}
+                    {s.chargeType === "project"
+                      ? `${s.projectCode ?? ""} · ${s.phaseName ?? ""}`
+                      : (s.indirectCodeLabel ?? "Indirect")}{" "}
+                    · {s.confidence.toUpperCase()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-sm">
+                    {Number(s.proposedHours)} h
+                  </span>
+                  <form action={dismissSignalAction}>
+                    <input type="hidden" name="signalId" value={s.id} />
+                    <Button type="submit" variant="ghost" size="sm">
+                      Skip
+                    </Button>
+                  </form>
+                  <form action={acceptSignalAction}>
+                    <input type="hidden" name="signalId" value={s.id} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Log it
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
       )}
 
       <TimesheetGrid
