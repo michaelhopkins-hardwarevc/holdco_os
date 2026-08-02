@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TimesheetGrid, type GridRow } from "@/components/timesheet-grid";
 import { runWithUser } from "@/db/rls";
 import { syncOutlook } from "@/lib/actions/connections";
@@ -94,6 +101,26 @@ export default async function TimesheetPage({
   const outlookConnected = Boolean(
     await getOutlookConnection(active.entityId, ctx.appUser.id),
   );
+
+  // The charge targets a user can assign a signal to (projects + phases, and
+  // indirect codes), for the editable per-signal selector.
+  const chargeTargets: { value: string; label: string }[] = [];
+  for (const p of projects) {
+    chargeTargets.push({ value: `project:${p.id}:`, label: `${p.code} · ${p.name}` });
+    for (const ph of phases.filter((x) => x.projectId === p.id)) {
+      chargeTargets.push({
+        value: `project:${p.id}:${ph.id}`,
+        label: `${p.code} · ${ph.name}`,
+      });
+    }
+  }
+  for (const c of codes) {
+    chargeTargets.push({ value: `indirect:${c.id}`, label: `${c.code} · ${c.category}` });
+  }
+  const defaultCharge = (s: (typeof signals)[number]) =>
+    s.chargeType === "project"
+      ? `project:${s.projectId}:${s.phaseId ?? ""}`
+      : `indirect:${s.indirectCodeId}`;
 
   const rowMap = new Map<string, GridRow>();
   const statuses: TimeEntryStatus[] = [];
@@ -266,20 +293,35 @@ export default async function TimesheetPage({
                     · {s.confidence.toUpperCase()}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm">
                     {Number(s.proposedHours)} h
                   </span>
+                  <form
+                    action={acceptSignalAction}
+                    className="flex items-center gap-2"
+                  >
+                    <input type="hidden" name="signalId" value={s.id} />
+                    <Select name="charge" defaultValue={defaultCharge(s)}>
+                      <SelectTrigger className="h-8 w-[200px]">
+                        <SelectValue placeholder="Choose a charge" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chargeTargets.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button type="submit" variant="outline" size="sm">
+                      Log it
+                    </Button>
+                  </form>
                   <form action={dismissSignalAction}>
                     <input type="hidden" name="signalId" value={s.id} />
                     <Button type="submit" variant="ghost" size="sm">
                       Skip
-                    </Button>
-                  </form>
-                  <form action={acceptSignalAction}>
-                    <input type="hidden" name="signalId" value={s.id} />
-                    <Button type="submit" variant="outline" size="sm">
-                      Log it
                     </Button>
                   </form>
                 </div>

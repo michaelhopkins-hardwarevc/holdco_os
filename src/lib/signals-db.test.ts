@@ -138,6 +138,36 @@ describe("acceptSignal", () => {
     expect(entry.costAmount).toBe(72000);
   });
 
+  it("uses the user's charge override instead of the guess", async () => {
+    const s = await setup();
+    // Signal guessed a project, but the user reassigns it to an indirect code.
+    const sig = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "2.00",
+      billable: true,
+    });
+    const entryId = await acceptSignal(db, s.actor, s.rates, sig, {
+      chargeType: "indirect",
+      projectId: null,
+      phaseId: null,
+      indirectCodeId: s.ind.id,
+    });
+    const [entry] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, entryId!));
+    expect(entry.chargeType).toBe("indirect");
+    expect(entry.indirectCodeId).toBe(s.ind.id);
+    expect(entry.billable).toBe(false);
+    expect(entry.billableAmount).toBe(0);
+
+    const [after] = await db.select().from(signal).where(eq(signal.id, sig.id));
+    expect(after.chargeType).toBe("indirect");
+    expect(after.indirectCodeId).toBe(s.ind.id);
+  });
+
   it("is idempotent: accepting twice makes one entry", async () => {
     const s = await setup();
     const sig = await makeSignal(s, {

@@ -8,9 +8,23 @@ import { getEntityRole, MANAGER_ROLES, requireContext } from "@/lib/auth";
 import {
   acceptOpenSignals,
   acceptSignal,
+  type ChargeOverride,
   dismissSignal,
 } from "@/lib/signals-db";
 import { getWeek } from "@/lib/timesheet";
+
+// Parse the "charge" the user picked: "project:<projectId>:<phaseId?>" or
+// "indirect:<codeId>". Returns undefined to fall back to the signal's guess.
+function parseCharge(value: string): ChargeOverride | undefined {
+  const [kind, a, b] = value.split(":");
+  if (kind === "project" && a) {
+    return { chargeType: "project", projectId: a, phaseId: b || null, indirectCodeId: null };
+  }
+  if (kind === "indirect" && a) {
+    return { chargeType: "indirect", projectId: null, phaseId: null, indirectCodeId: a };
+  }
+  return undefined;
+}
 
 type Signal = typeof signal.$inferSelect;
 
@@ -44,7 +58,14 @@ async function loadSignal(signalId: string): Promise<Signal> {
 export async function acceptSignalAction(formData: FormData): Promise<void> {
   const sig = await loadSignal(String(formData.get("signalId") ?? ""));
   const { ctx, res } = await loadResourceAuthorized(sig.entityId, sig.resourceId);
-  await acceptSignal(db, actorOf(ctx), { billRate: res.billRate, costRate: res.costRate }, sig);
+  const override = parseCharge(String(formData.get("charge") ?? ""));
+  await acceptSignal(
+    db,
+    actorOf(ctx),
+    { billRate: res.billRate, costRate: res.costRate },
+    sig,
+    override,
+  );
   revalidatePath("/timesheet");
 }
 

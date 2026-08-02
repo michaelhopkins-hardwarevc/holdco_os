@@ -10,6 +10,14 @@ import { type Actor, type ResourceRates, TimesheetLockedError } from "@/lib/time
 
 type SignalRow = typeof signal.$inferSelect;
 
+// The charge a user picked for a signal (overrides the machine's guess).
+export type ChargeOverride = {
+  chargeType: "project" | "indirect";
+  projectId: string | null;
+  phaseId: string | null;
+  indirectCodeId: string | null;
+};
+
 /**
  * Accept a signal: turn it into (or fold it into) a draft time entry for the
  * resource, then mark the signal accepted and link it. Idempotent — a signal
@@ -21,6 +29,7 @@ export async function acceptSignal(
   actor: Actor,
   rates: ResourceRates,
   sig: SignalRow,
+  override?: ChargeOverride,
 ): Promise<string | null> {
   if (sig.state !== "open") return sig.timeEntryId;
 
@@ -40,11 +49,17 @@ export async function acceptSignal(
     throw new TimesheetLockedError();
   }
 
-  const isProject = sig.chargeType === "project";
-  const projectId = isProject ? sig.projectId : null;
-  const phaseId = isProject ? sig.phaseId : null;
-  const indirectCodeId = isProject ? null : sig.indirectCodeId;
-  const billable = isProject ? sig.billable : false;
+  const charge: ChargeOverride = override ?? {
+    chargeType: sig.chargeType,
+    projectId: sig.projectId,
+    phaseId: sig.phaseId,
+    indirectCodeId: sig.indirectCodeId,
+  };
+  const isProject = charge.chargeType === "project";
+  const projectId = isProject ? charge.projectId : null;
+  const phaseId = isProject ? charge.phaseId : null;
+  const indirectCodeId = isProject ? null : charge.indirectCodeId;
+  const billable = isProject; // project time bills; indirect never does
   const hours = Number(sig.proposedHours);
 
   // Fold into an existing draft cell for the same charge + day, if any.
@@ -61,7 +76,7 @@ export async function acceptSignal(
     );
   const match = dayEntries.find(
     (e) =>
-      e.chargeType === sig.chargeType &&
+      e.chargeType === charge.chargeType &&
       e.projectId === projectId &&
       e.phaseId === phaseId &&
       e.indirectCodeId === indirectCodeId,
@@ -100,7 +115,7 @@ export async function acceptSignal(
         entityId: sig.entityId,
         resourceId: sig.resourceId,
         workDate: sig.workDate,
-        chargeType: sig.chargeType,
+        chargeType: charge.chargeType,
         projectId,
         phaseId,
         indirectCodeId,
@@ -121,7 +136,16 @@ export async function acceptSignal(
 
   await db
     .update(signal)
-    .set({ state: "accepted", timeEntryId: entryId, updatedBy: actor.actorId })
+    .set({
+      state: "accepted",
+      timeEntryId: entryId,
+      chargeType: charge.chargeType,
+      projectId,
+      phaseId,
+      indirectCodeId,
+      billable,
+      updatedBy: actor.actorId,
+    })
     .where(eq(signal.id, sig.id));
 
   return entryId;
