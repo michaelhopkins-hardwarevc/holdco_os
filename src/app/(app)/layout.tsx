@@ -43,6 +43,9 @@ export default async function AppLayout({
                 <Link href="/indirect-codes" className="hover:text-foreground">
                   Indirect codes
                 </Link>
+                <Link href="/connections" className="hover:text-foreground">
+                  Connections
+                </Link>
               </>
             )}
             <Link href="/entities" className="hover:text-foreground">
