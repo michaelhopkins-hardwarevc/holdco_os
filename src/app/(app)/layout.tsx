@@ -25,6 +25,12 @@ export default async function AppLayout({
             </Link>
             {active && (
               <>
+                <Link href="/timesheet" className="hover:text-foreground">
+                  Timesheet
+                </Link>
+                <Link href="/approvals" className="hover:text-foreground">
+                  Approvals
+                </Link>
                 <Link href="/clients" className="hover:text-foreground">
                   Clients
                 </Link>
