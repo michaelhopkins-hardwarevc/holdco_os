@@ -149,17 +149,63 @@ Set the same variables from `.env.local` in the Vercel project's **Environment
 Variables** (Settings → Environment Variables), then redeploy. The app reads
 them at runtime; the build itself does not need them.
 
+### Signals: connect Outlook (Microsoft 365)
+
+Signals pre-populate the timesheet from each person's own Outlook calendar.
+Access is read-only, per user, and nothing posts to a timesheet without the
+person accepting it. Setup is a one-time Azure app registration by a Microsoft
+365 / Entra admin.
+
+**1. Register the app** (Azure Portal → Microsoft Entra ID → App registrations →
+New registration):
+
+- Name: `HoldCo OS`
+- Supported account types: **Accounts in this organizational directory only**
+- Redirect URI: platform **Web**, value
+  `https://holdco-os.vercel.app/api/connections/outlook/callback`
+  (add `http://localhost:3000/api/connections/outlook/callback` too for local
+  testing, under Authentication)
+
+**2. Collect three values:**
+
+- **Application (client) ID** → `MICROSOFT_CLIENT_ID`
+- **Directory (tenant) ID** → `MICROSOFT_TENANT`
+- **Certificates & secrets → New client secret → Value** → `MICROSOFT_CLIENT_SECRET`
+
+**3. Permissions:** API permissions → Microsoft Graph → **Delegated** → add
+`Calendars.Read` and `User.Read`, then **Grant admin consent**.
+
+**4. Token encryption key** (`TOKEN_ENCRYPTION_KEY`), used to encrypt stored
+OAuth tokens at rest — generate one:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+**5.** Add all four vars to Vercel (Production) and `.env.local`, redeploy, then
+in the app go to **Connections → Connect Outlook**, and on the **Timesheet** use
+**Refresh from Outlook**. A person can disconnect at any time, which also drops
+their still-open signals.
+
+Tokens live only in `source_connection`, which is readable by the server-role
+connection only (never through the API), and are AES-256-GCM encrypted with
+`TOKEN_ENCRYPTION_KEY`.
+
 ## Project layout
 
 ```
 src/
-  app/            # Next.js App Router (pages, layouts, API routes)
-    api/health/   # liveness probe
-  components/ui/  # shadcn/ui components
-  db/             # Drizzle client + schema + migrations
-  lib/            # utilities
-e2e/              # Playwright specs
-docs/DECISIONS.md # short notes on non-obvious choices
+  app/(app)/       # authed screens (timesheet, approvals, projects, ...)
+  app/api/         # route handlers (health, connections/outlook OAuth)
+  components/      # entity switcher, timesheet grid, shadcn/ui
+  db/              # Drizzle client + schema + migrations
+  lib/
+    actions/       # server actions (writes), grouped by feature
+    integrations/  # calendar adapter interface + Outlook (Graph) provider
+    *-db.ts        # testable DB logic (timesheet, signals)
+    queries.ts     # entity-scoped reads (run through runWithUser)
+e2e/               # Playwright specs
+docs/DECISIONS.md  # short notes on non-obvious choices
 ```
 
 ## Decisions
