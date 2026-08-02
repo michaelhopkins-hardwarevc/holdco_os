@@ -12,7 +12,8 @@ import {
   freshOutlookAccessToken,
   getOutlookConnection,
 } from "@/lib/integrations/outlook-store";
-import { eventsToSignals } from "@/lib/signals-map";
+import { listSignalRules } from "@/lib/queries";
+import { eventsToSignals, type RuleCharge } from "@/lib/signals-map";
 import { addWeeks, getWeek } from "@/lib/timesheet";
 
 async function requireMember(entityId: string) {
@@ -74,7 +75,39 @@ export async function syncOutlook(formData: FormData): Promise<void> {
         ),
       );
 
-    const mapped = eventsToSignals(events, { projects, indirectCodes: codes });
+    // Apply this resource's learned rules (valid targets only) before the
+    // generic keyword guess.
+    const ruleRows = await listSignalRules(db, entityId, resourceId);
+    const validProjectIds = new Set(projects.map((p) => p.id));
+    const validCodeIds = new Set(codes.map((c) => c.id));
+    const rules: Record<string, RuleCharge> = {};
+    for (const r of ruleRows) {
+      if (r.chargeType === "project" && r.projectId && validProjectIds.has(r.projectId)) {
+        rules[r.matchValue] = {
+          chargeType: "project",
+          projectId: r.projectId,
+          phaseId: r.phaseId,
+          indirectCodeId: null,
+        };
+      } else if (
+        r.chargeType === "indirect" &&
+        r.indirectCodeId &&
+        validCodeIds.has(r.indirectCodeId)
+      ) {
+        rules[r.matchValue] = {
+          chargeType: "indirect",
+          projectId: null,
+          phaseId: null,
+          indirectCodeId: r.indirectCodeId,
+        };
+      }
+    }
+
+    const mapped = eventsToSignals(events, {
+      projects,
+      indirectCodes: codes,
+      rules,
+    });
     let created = 0;
     if (mapped.length > 0) {
       const inserted = await db

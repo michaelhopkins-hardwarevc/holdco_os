@@ -1,5 +1,6 @@
 import {
   boolean,
+  integer,
   numeric,
   pgTable,
   text,
@@ -96,5 +97,34 @@ export const signal = pgTable(
       t.externalId,
       t.resourceId,
     ),
+  ],
+).enableRLS();
+
+// A learned mapping: "an event whose normalized subject equals `match_value`
+// charges to this project/phase or indirect code" for this resource. Built and
+// reinforced whenever the person accepts a signal; applied on the next sync.
+export const signalRule = pgTable(
+  "signal_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entity.id),
+    resourceId: uuid("resource_id")
+      .notNull()
+      .references(() => resource.id),
+    matchValue: text("match_value").notNull(), // normalized subject
+    chargeType: chargeType("charge_type").notNull(),
+    projectId: uuid("project_id").references(() => project.id),
+    phaseId: uuid("phase_id").references(() => phase.id),
+    indirectCodeId: uuid("indirect_code_id").references(() => indirectCode.id),
+    hitCount: integer("hit_count").notNull().default(1),
+    ...auditColumns(),
+  },
+  (t) => [
+    unique("signal_rule_resource_match_unique").on(t.resourceId, t.matchValue),
   ],
 ).enableRLS();

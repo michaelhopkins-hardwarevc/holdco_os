@@ -1,6 +1,7 @@
 import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import { signal, timeEntry } from "@/db/schema";
 import type { QueryDb } from "@/lib/queries";
+import { recordRule } from "@/lib/rules-db";
 import { computeAmounts, getWeek } from "@/lib/timesheet";
 import { type Actor, type ResourceRates, TimesheetLockedError } from "@/lib/timesheet-db";
 
@@ -147,6 +148,14 @@ export async function acceptSignal(
       updatedBy: actor.actorId,
     })
     .where(eq(signal.id, sig.id));
+
+  // Teach a rule from this decision so future syncs propose the same charge.
+  await recordRule(db, actor, {
+    entityId: sig.entityId,
+    resourceId: sig.resourceId,
+    subject: sig.evidence,
+    charge: { chargeType: charge.chargeType, projectId, phaseId, indirectCodeId },
+  });
 
   return entryId;
 }

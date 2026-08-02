@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { indirectCode, phase, project, resource, signal } from "@/db/schema";
 import { getEntityRole, MANAGER_ROLES, requireContext } from "@/lib/auth";
+import { deleteRule } from "@/lib/rules-db";
 import {
   acceptOpenSignals,
   acceptSignal,
@@ -117,6 +118,29 @@ export async function dismissAllSignalsAction(formData: FormData): Promise<void>
     await dismissSignal(db, actorOf(ctx), sig);
   }
   revalidatePath("/timesheet");
+}
+
+// Delete one of the current user's learned rules for the active entity.
+export async function deleteSignalRuleAction(formData: FormData): Promise<void> {
+  const entityId = String(formData.get("entityId") ?? "");
+  const ruleId = String(formData.get("ruleId") ?? "");
+  const ctx = await requireContext();
+  const role = await getEntityRole(ctx.appUser.id, entityId);
+  if (!role) throw new Error("You are not a member of this entity.");
+  const [res] = await db
+    .select({ id: resource.id })
+    .from(resource)
+    .where(
+      and(
+        eq(resource.entityId, entityId),
+        eq(resource.userId, ctx.appUser.id),
+        isNull(resource.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!res) return;
+  await deleteRule(db, actorOf(ctx), ruleId, entityId, res.id);
+  revalidatePath("/connections");
 }
 
 // Demo helper: seed a few sample signals so the flow is usable before any real

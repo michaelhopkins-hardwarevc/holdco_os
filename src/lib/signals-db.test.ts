@@ -10,6 +10,7 @@ import {
   project,
   resource,
   signal,
+  signalRule,
   timeEntry,
 } from "@/db/schema";
 import { createTestDb, type TestDb } from "@/db/test-helpers";
@@ -136,6 +137,21 @@ describe("acceptSignal", () => {
     expect(entry.billable).toBe(false);
     expect(entry.billableAmount).toBe(0);
     expect(entry.costAmount).toBe(72000);
+  });
+
+  it("teaches a rule from the accepted charge", async () => {
+    const s = await setup();
+    const sig = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      evidence: "Weekly Design Review",
+    });
+    await acceptSignal(db, s.actor, s.rates, sig);
+    const rules = await db.select().from(signalRule);
+    expect(rules).toHaveLength(1);
+    expect(rules[0].matchValue).toBe("weekly design review");
+    expect(rules[0].projectId).toBe(s.proj.id);
   });
 
   it("uses the user's charge override instead of the guess", async () => {

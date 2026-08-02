@@ -17,6 +17,7 @@ import {
   project,
   resource,
   signal,
+  signalRule,
   timeEntry,
   user,
 } from "@/db/schema";
@@ -296,6 +297,39 @@ export function listOpenSignals(
       ),
     )
     .orderBy(asc(signal.workDate));
+}
+
+/** Learned signal rules for a resource, with charge labels for display. */
+export function listSignalRules(
+  db: QueryDb,
+  entityId: string,
+  resourceId: string,
+) {
+  return db
+    .select({
+      id: signalRule.id,
+      matchValue: signalRule.matchValue,
+      chargeType: signalRule.chargeType,
+      projectId: signalRule.projectId,
+      phaseId: signalRule.phaseId,
+      indirectCodeId: signalRule.indirectCodeId,
+      hitCount: signalRule.hitCount,
+      projectCode: project.code,
+      phaseName: phase.name,
+      indirectCodeLabel: indirectCode.code,
+    })
+    .from(signalRule)
+    .leftJoin(project, eq(project.id, signalRule.projectId))
+    .leftJoin(phase, eq(phase.id, signalRule.phaseId))
+    .leftJoin(indirectCode, eq(indirectCode.id, signalRule.indirectCodeId))
+    .where(
+      and(
+        eq(signalRule.entityId, entityId),
+        eq(signalRule.resourceId, resourceId),
+        isNull(signalRule.deletedAt),
+      ),
+    )
+    .orderBy(asc(signalRule.matchValue));
 }
 
 /** Submitted time entries across the entity (for the approvals queue). */

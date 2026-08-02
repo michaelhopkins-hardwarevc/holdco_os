@@ -14,7 +14,21 @@ export type Proposal = {
   indirectCodeId: string | null;
   billable: boolean;
   confidence: "high" | "med" | "low";
+  learned?: boolean;
 };
+
+// A learned rule's target, keyed by normalized subject.
+export type RuleCharge = {
+  chargeType: "project" | "indirect";
+  projectId: string | null;
+  phaseId: string | null;
+  indirectCodeId: string | null;
+};
+
+/** Normalize a subject for exact-match rule lookup: lowercase, collapse space. */
+export function normalizeSubject(subject: string): string {
+  return subject.toLowerCase().replace(/\s+/g, " ").trim();
+}
 
 export type MappedSignal = {
   workDate: string;
@@ -39,8 +53,26 @@ export function durationHours(startISO: string, endISO: string): number {
 
 export function mapSubjectToProposal(
   subject: string,
-  opts: { projects: ProjectRef[]; indirectCodes: IndirectRef[] },
+  opts: {
+    projects: ProjectRef[];
+    indirectCodes: IndirectRef[];
+    rules?: Record<string, RuleCharge>;
+  },
 ): Proposal {
+  // A learned rule (an exact subject you've charged before) wins.
+  const rule = opts.rules?.[normalizeSubject(subject)];
+  if (rule) {
+    return {
+      chargeType: rule.chargeType,
+      projectId: rule.projectId,
+      phaseId: rule.phaseId,
+      indirectCodeId: rule.indirectCodeId,
+      billable: rule.chargeType === "project",
+      confidence: "high",
+      learned: true,
+    };
+  }
+
   const s = subject.toLowerCase();
   const byCode = opts.projects.find(
     (p) => p.code && s.includes(p.code.toLowerCase()),
@@ -87,7 +119,11 @@ export function mapSubjectToProposal(
  *  indirect fallback with no indirect code to charge to). */
 export function eventsToSignals(
   events: CalendarEvent[],
-  opts: { projects: ProjectRef[]; indirectCodes: IndirectRef[] },
+  opts: {
+    projects: ProjectRef[];
+    indirectCodes: IndirectRef[];
+    rules?: Record<string, RuleCharge>;
+  },
 ): MappedSignal[] {
   const out: MappedSignal[] = [];
   for (const e of events) {
@@ -102,7 +138,7 @@ export function eventsToSignals(
       workDate: e.startISO.slice(0, 10),
       externalId: e.id,
       evidence: subject,
-      provenance: `${hours} h · ${e.attendees} attendee${e.attendees === 1 ? "" : "s"}`,
+      provenance: `${hours} h · ${e.attendees} attendee${e.attendees === 1 ? "" : "s"}${prop.learned ? " · learned" : ""}`,
       chargeType: prop.chargeType,
       projectId: prop.projectId,
       phaseId: prop.phaseId,

@@ -36,6 +36,20 @@
       "when": 1785680701731,
       "tag": "0004_lock_source_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785709857688,
+      "tag": "0005_pale_bloodaxe",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785709860841,
+      "tag": "0006_signal_rule_rls",
+      "breakpoints": true
     }
   ]
 }

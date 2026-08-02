@@ -4,6 +4,7 @@ import {
   durationHours,
   eventsToSignals,
   mapSubjectToProposal,
+  normalizeSubject,
 } from "@/lib/signals-map";
 
 const projects = [
@@ -39,6 +40,34 @@ describe("mapSubjectToProposal", () => {
     const p = mapSubjectToProposal("Weekly all-hands", { projects, indirectCodes });
     // First code whose category is preferred (overhead here), non-billable.
     expect(p).toMatchObject({ chargeType: "indirect", indirectCodeId: "i1", billable: false });
+  });
+
+  it("prefers a learned rule over the keyword guess", () => {
+    const rules = {
+      "weekly all-hands": {
+        chargeType: "project" as const,
+        projectId: "p2",
+        phaseId: null,
+        indirectCodeId: null,
+      },
+    };
+    const p = mapSubjectToProposal("Weekly All-Hands", {
+      projects,
+      indirectCodes,
+      rules,
+    });
+    expect(p).toMatchObject({
+      chargeType: "project",
+      projectId: "p2",
+      confidence: "high",
+      learned: true,
+    });
+  });
+});
+
+describe("normalizeSubject", () => {
+  it("lowercases and collapses whitespace", () => {
+    expect(normalizeSubject("  Weekly   All-Hands ")).toBe("weekly all-hands");
   });
 });
 
