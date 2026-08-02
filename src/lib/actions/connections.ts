@@ -2,6 +2,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { indirectCode, project, resource, signal } from "@/db/schema";
 import { getEntityRole, requireContext } from "@/lib/auth";
@@ -40,56 +41,76 @@ export async function syncOutlook(formData: FormData): Promise<void> {
   }
 
   const conn = await getOutlookConnection(entityId, ctx.appUser.id);
-  if (!conn) {
-    throw new Error("Connect Outlook first (Connections).");
-  }
-
-  const accessToken = await freshOutlookAccessToken(conn);
   const week = getWeek(weekStart);
-  const startISO = `${week.start}T00:00:00Z`;
-  const endISO = `${addWeeks(week.start, 1)}T00:00:00Z`;
-  const events = await outlookProvider.listEvents(accessToken, startISO, endISO);
 
-  const projects = await db
-    .select({ id: project.id, code: project.code, name: project.name })
-    .from(project)
-    .where(and(eq(project.entityId, entityId), isNull(project.deletedAt)));
-  const codes = await db
-    .select({
-      id: indirectCode.id,
-      code: indirectCode.code,
-      category: indirectCode.category,
-    })
-    .from(indirectCode)
-    .where(
-      and(
-        eq(indirectCode.entityId, entityId),
-        eq(indirectCode.active, true),
-        isNull(indirectCode.deletedAt),
-      ),
-    );
+  // Collect an outcome, then redirect with it (redirect() must be outside the
+  // try/catch, since it works by throwing).
+  let outcome:
+    | { ok: true; events: number; created: number }
+    | { ok: false; error: string };
+  try {
+    if (!conn) throw new Error("Outlook is not connected.");
+    const accessToken = await freshOutlookAccessToken(conn);
+    const startISO = `${week.start}T00:00:00Z`;
+    const endISO = `${addWeeks(week.start, 1)}T00:00:00Z`;
+    const events = await outlookProvider.listEvents(accessToken, startISO, endISO);
 
-  const mapped = eventsToSignals(events, { projects, indirectCodes: codes });
-  if (mapped.length > 0) {
-    await db
-      .insert(signal)
-      .values(
-        mapped.map((m) => ({
-          organizationId: ctx.appUser.organizationId,
-          entityId,
-          resourceId,
-          provider: "outlook",
-          state: "open" as const,
-          createdBy: ctx.appUser.id,
-          updatedBy: ctx.appUser.id,
-          ...m,
-        })),
-      )
-      .onConflictDoNothing();
+    const projects = await db
+      .select({ id: project.id, code: project.code, name: project.name })
+      .from(project)
+      .where(and(eq(project.entityId, entityId), isNull(project.deletedAt)));
+    const codes = await db
+      .select({
+        id: indirectCode.id,
+        code: indirectCode.code,
+        category: indirectCode.category,
+      })
+      .from(indirectCode)
+      .where(
+        and(
+          eq(indirectCode.entityId, entityId),
+          eq(indirectCode.active, true),
+          isNull(indirectCode.deletedAt),
+        ),
+      );
+
+    const mapped = eventsToSignals(events, { projects, indirectCodes: codes });
+    let created = 0;
+    if (mapped.length > 0) {
+      const inserted = await db
+        .insert(signal)
+        .values(
+          mapped.map((m) => ({
+            organizationId: ctx.appUser.organizationId,
+            entityId,
+            resourceId,
+            provider: "outlook",
+            state: "open" as const,
+            createdBy: ctx.appUser.id,
+            updatedBy: ctx.appUser.id,
+            ...m,
+          })),
+        )
+        .onConflictDoNothing()
+        .returning({ id: signal.id });
+      created = inserted.length;
+    }
+    outcome = { ok: true, events: events.length, created };
+  } catch (e) {
+    outcome = {
+      ok: false,
+      error: e instanceof Error ? e.message : "Sync failed.",
+    };
   }
 
-  revalidatePath("/timesheet");
-  revalidatePath("/connections");
+  const params = new URLSearchParams({ week: week.start });
+  if (outcome.ok) {
+    params.set("syncEvents", String(outcome.events));
+    params.set("syncCreated", String(outcome.created));
+  } else {
+    params.set("syncError", outcome.error.slice(0, 300));
+  }
+  redirect(`/timesheet?${params.toString()}`);
 }
 
 export async function disconnectOutlook(formData: FormData): Promise<void> {

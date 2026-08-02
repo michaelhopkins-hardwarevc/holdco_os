@@ -35,11 +35,34 @@ import {
 export default async function TimesheetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{
+    week?: string;
+    syncEvents?: string;
+    syncCreated?: string;
+    syncError?: string;
+  }>;
 }) {
   const { ctx, active } = await requireActiveEntity();
   const sp = await searchParams;
   const week = getWeek(sp.week ?? toISODate(new Date()));
+
+  let syncMessage: string | null = null;
+  let syncIsError = false;
+  if (sp.syncError) {
+    syncIsError = true;
+    syncMessage = `Couldn't pull from Outlook: ${sp.syncError}`;
+  } else if (sp.syncEvents !== undefined) {
+    const events = Number(sp.syncEvents);
+    const created = Number(sp.syncCreated ?? 0);
+    if (events === 0) {
+      syncMessage =
+        "No calendar events found for this week. Pick a week that has meetings, or check that events exist in your Outlook.";
+    } else if (created === 0) {
+      syncMessage = `Found ${events} calendar event${events === 1 ? "" : "s"}, but they were already imported or couldn't be matched to a project or indirect code.`;
+    } else {
+      syncMessage = `Imported ${created} new signal${created === 1 ? "" : "s"} from ${events} calendar event${events === 1 ? "" : "s"}.`;
+    }
+  }
 
   const data = await runWithUser(ctx.authUser.id, async (tx) => {
     const [res] = await getResourceForUser(tx, active.entityId, ctx.appUser.id);
@@ -137,6 +160,16 @@ export default async function TimesheetPage({
           </Link>
         </div>
       </div>
+
+      {syncMessage && (
+        <p
+          className={`rounded-lg border px-3 py-2 text-sm ${
+            syncIsError ? "text-destructive" : "bg-muted"
+          }`}
+        >
+          {syncMessage}
+        </p>
+      )}
 
       {!editable && (
         <p className="rounded-lg border bg-muted px-3 py-2 text-sm">
