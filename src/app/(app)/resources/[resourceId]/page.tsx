@@ -8,11 +8,18 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { runWithUser } from "@/db/rls";
 import { updateResource } from "@/lib/actions/resources";
 import { ADMIN_ROLES, requireActiveEntity } from "@/lib/auth";
 import { centsToDollars } from "@/lib/money";
-import { getResource } from "@/lib/queries";
+import { getResource, listEntityMembers } from "@/lib/queries";
 
 export default async function ResourceEditPage({
   params,
@@ -23,9 +30,11 @@ export default async function ResourceEditPage({
   const { ctx, active } = await requireActiveEntity();
   if (!ADMIN_ROLES.includes(active.role)) notFound();
 
-  const [row] = await runWithUser(ctx.authUser.id, (tx) =>
-    getResource(tx, active.entityId, resourceId),
-  );
+  const { row, members } = await runWithUser(ctx.authUser.id, async (tx) => {
+    const [row] = await getResource(tx, active.entityId, resourceId);
+    const members = await listEntityMembers(tx, active.entityId);
+    return { row, members };
+  });
   if (!row) notFound();
 
   return (
@@ -48,6 +57,21 @@ export default async function ResourceEditPage({
                 <Label htmlFor="title">Title</Label>
                 <Input id="title" name="title" defaultValue={row.title ?? ""} />
               </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Linked user (who enters this person&apos;s time)</Label>
+              <Select name="userId" defaultValue={row.userId ?? undefined}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Unlinked" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((m) => (
+                    <SelectItem key={m.userId} value={m.userId}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col gap-2">

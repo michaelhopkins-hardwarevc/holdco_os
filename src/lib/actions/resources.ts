@@ -17,6 +17,7 @@ export async function createResource(formData: FormData): Promise<void> {
   await db.insert(resource).values({
     organizationId: ctx.appUser.organizationId,
     entityId,
+    userId: formStr(formData, "userId"),
     name,
     title: formStr(formData, "title"),
     billRate: dollarsToCentsOrZero(formStr(formData, "billRate")),
@@ -41,6 +42,7 @@ export async function updateResource(formData: FormData): Promise<void> {
     .update(resource)
     .set({
       name,
+      userId: formStr(formData, "userId"),
       title: formStr(formData, "title"),
       billRate: dollarsToCentsOrZero(formStr(formData, "billRate")),
       costRate: dollarsToCentsOrZero(formStr(formData, "costRate")),

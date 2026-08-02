@@ -9,6 +9,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -20,22 +27,29 @@ import { runWithUser } from "@/db/rls";
 import { createResource, setResourceActive } from "@/lib/actions/resources";
 import { ADMIN_ROLES, requireActiveEntity } from "@/lib/auth";
 import { formatCents } from "@/lib/money";
-import { listResources } from "@/lib/queries";
+import { listEntityMembers, listResources } from "@/lib/queries";
 
 export default async function ResourcesPage() {
   const { ctx, active } = await requireActiveEntity();
   const canManage = ADMIN_ROLES.includes(active.role);
-  const resources = await runWithUser(ctx.authUser.id, (tx) =>
-    listResources(tx, active.entityId),
+  const { resources, members } = await runWithUser(
+    ctx.authUser.id,
+    async (tx) => ({
+      resources: await listResources(tx, active.entityId),
+      members: await listEntityMembers(tx, active.entityId),
+    }),
   );
+  const memberName = new Map(members.map((m) => [m.userId, m.name]));
+  const colCount = canManage ? 8 : 7;
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Resources</h1>
         <p className="text-muted-foreground">
-          {active.entityName} · billable people. Deactivated resources keep
-          their history but are hidden from new time entry.
+          {active.entityName} · billable people. Link a resource to a user so
+          that person can enter time. Deactivated resources keep their history
+          but are hidden from new time entry.
         </p>
       </div>
 
@@ -44,6 +58,7 @@ export default async function ResourcesPage() {
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Title</TableHead>
+            <TableHead>Linked user</TableHead>
             <TableHead>Bill rate</TableHead>
             <TableHead>Cost rate</TableHead>
             <TableHead>Target %</TableHead>
@@ -54,7 +69,7 @@ export default async function ResourcesPage() {
         <TableBody>
           {resources.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canManage ? 7 : 6} className="text-muted-foreground">
+              <TableCell colSpan={colCount} className="text-muted-foreground">
                 No resources yet.
               </TableCell>
             </TableRow>
@@ -75,6 +90,9 @@ export default async function ResourcesPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {r.title ?? "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {r.userId ? (memberName.get(r.userId) ?? "—") : "—"}
                 </TableCell>
                 <TableCell>{formatCents(r.billRate)}/hr</TableCell>
                 <TableCell>{formatCents(r.costRate)}/hr</TableCell>
@@ -119,6 +137,21 @@ export default async function ResourcesPage() {
                   <Label htmlFor="title">Title</Label>
                   <Input id="title" name="title" />
                 </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Linked user (who enters this person&apos;s time)</Label>
+                <Select name="userId">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unlinked" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map((m) => (
+                      <SelectItem key={m.userId} value={m.userId}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col gap-2">
