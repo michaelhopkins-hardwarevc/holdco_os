@@ -141,7 +141,7 @@ export async function generateSampleSignals(formData: FormData): Promise<void> {
     organizationId: ctx.appUser.organizationId,
     entityId,
     resourceId,
-    provider: "google_calendar",
+    provider: "outlook",
     state: "open" as const,
     createdBy: ctx.appUser.id,
     updatedBy: ctx.appUser.id,

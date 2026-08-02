@@ -3,6 +3,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { TimesheetGrid, type GridRow } from "@/components/timesheet-grid";
 import { runWithUser } from "@/db/rls";
+import { syncOutlook } from "@/lib/actions/connections";
 import {
   acceptAllSignalsAction,
   acceptSignalAction,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/actions/signals";
 import { submitWeek } from "@/lib/actions/timesheet";
 import { requireActiveEntity } from "@/lib/auth";
+import { getOutlookConnection } from "@/lib/integrations/outlook-store";
 import {
   getResourceForUser,
   getWeekEntries,
@@ -66,6 +68,9 @@ export default async function TimesheetPage({
   }
 
   const { res, entries, projects, phases, codes, signals } = data;
+  const outlookConnected = Boolean(
+    await getOutlookConnection(active.entityId, ctx.appUser.id),
+  );
 
   const rowMap = new Map<string, GridRow>();
   const statuses: TimeEntryStatus[] = [];
@@ -143,11 +148,30 @@ export default async function TimesheetPage({
       {editable && (
         <section className="rounded-lg border">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted px-4 py-3">
-            <div className="text-sm font-medium">
-              Signals · {signals.length} proposed
-              <span className="ml-2 font-normal text-muted-foreground">
-                from your connected tools
-              </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="text-sm font-medium">
+                Signals · {signals.length} proposed
+                <span className="ml-2 font-normal text-muted-foreground">
+                  from your connected tools
+                </span>
+              </div>
+              {outlookConnected ? (
+                <form action={syncOutlook}>
+                  <input type="hidden" name="entityId" value={active.entityId} />
+                  <input type="hidden" name="resourceId" value={res.id} />
+                  <input type="hidden" name="weekStart" value={week.start} />
+                  <Button type="submit" variant="outline" size="sm">
+                    Refresh from Outlook
+                  </Button>
+                </form>
+              ) : (
+                <a
+                  href="/connections"
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  Connect Outlook
+                </a>
+              )}
             </div>
             {signals.length > 0 && (
               <div className="flex items-center gap-2">
