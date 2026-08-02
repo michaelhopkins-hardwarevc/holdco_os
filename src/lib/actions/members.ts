@@ -74,9 +74,16 @@ export async function inviteMember(formData: FormData): Promise<void> {
     });
   }
 
-  // Best-effort email invite (depends on Supabase email being configured).
+  // Best-effort email invite (depends on Supabase email being configured). The
+  // link returns the invitee to /account to set their password.
   try {
-    await createAdminClient().auth.admin.inviteUserByEmail(email);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    await createAdminClient().auth.admin.inviteUserByEmail(
+      email,
+      appUrl
+        ? { redirectTo: `${appUrl}/auth/callback?redirectedFrom=/account` }
+        : undefined,
+    );
   } catch {
     // The membership is recorded regardless; ignore email delivery failures.
   }

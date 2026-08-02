@@ -68,9 +68,12 @@ export default async function AppLayout({
               activeEntityId={active?.entityId ?? null}
             />
           )}
-          <span className="hidden text-sm text-muted-foreground sm:inline">
+          <Link
+            href="/account"
+            className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline"
+          >
             {ctx.appUser.email}
-          </span>
+          </Link>
           <form action="/auth/signout" method="post">
             <Button type="submit" variant="outline" size="sm">
               Sign out

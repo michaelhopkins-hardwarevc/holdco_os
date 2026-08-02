@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "recover";
 
 export function LoginForm({
   redirectedFrom,
@@ -33,6 +33,12 @@ export function LoginForm({
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError(null);
+    setNotice(null);
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -40,18 +46,12 @@ export function LoginForm({
     setLoading(true);
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         router.push(redirectedFrom);
         router.refresh();
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
+      } else if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (data.session) {
           router.push(redirectedFrom);
@@ -60,6 +60,15 @@ export function LoginForm({
           setNotice("Account created. Check your email to confirm, then sign in.");
           setMode("signin");
         }
+      } else {
+        // recover: email a password-reset link that returns to /account
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/callback?redirectedFrom=/account`,
+        });
+        if (error) throw error;
+        setNotice(
+          "If an account exists for that email, a password-reset link is on its way. Open it to set a new password.",
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -81,13 +90,18 @@ export function LoginForm({
     if (error) setError(error.message);
   }
 
+  const title =
+    mode === "signin"
+      ? "Sign in to your account"
+      : mode === "signup"
+        ? "Create your account"
+        : "Reset your password";
+
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>HoldCo OS</CardTitle>
-        <CardDescription>
-          {mode === "signin" ? "Sign in to your account" : "Create your account"}
-        </CardDescription>
+        <CardDescription>{title}</CardDescription>
       </CardHeader>
       <form onSubmit={onSubmit}>
         <CardContent className="flex flex-col gap-4">
@@ -102,20 +116,31 @@ export function LoginForm({
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete={
-                mode === "signin" ? "current-password" : "new-password"
-              }
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
+          {mode !== "recover" && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                {mode === "signin" && (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:underline"
+                    onClick={() => switchMode("recover")}
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <Input
+                id="password"
+                type="password"
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
         </CardContent>
@@ -125,30 +150,48 @@ export function LoginForm({
               ? "Please wait…"
               : mode === "signin"
                 ? "Sign in"
-                : "Sign up"}
+                : mode === "signup"
+                  ? "Sign up"
+                  : "Send reset link"}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={onGoogle}
-            disabled={loading}
-          >
-            Continue with Google
-          </Button>
-          <button
-            type="button"
-            className="text-sm text-muted-foreground hover:underline"
-            onClick={() => {
-              setMode(mode === "signin" ? "signup" : "signin");
-              setError(null);
-              setNotice(null);
-            }}
-          >
-            {mode === "signin"
-              ? "Need an account? Sign up"
-              : "Have an account? Sign in"}
-          </button>
+          {mode !== "recover" && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={onGoogle}
+              disabled={loading}
+            >
+              Continue with Google
+            </Button>
+          )}
+          {mode === "signin" && (
+            <button
+              type="button"
+              className="text-sm text-muted-foreground hover:underline"
+              onClick={() => switchMode("signup")}
+            >
+              Need an account? Sign up
+            </button>
+          )}
+          {mode === "signup" && (
+            <button
+              type="button"
+              className="text-sm text-muted-foreground hover:underline"
+              onClick={() => switchMode("signin")}
+            >
+              Have an account? Sign in
+            </button>
+          )}
+          {mode === "recover" && (
+            <button
+              type="button"
+              className="text-sm text-muted-foreground hover:underline"
+              onClick={() => switchMode("signin")}
+            >
+              Back to sign in
+            </button>
+          )}
         </CardFooter>
       </form>
     </Card>
