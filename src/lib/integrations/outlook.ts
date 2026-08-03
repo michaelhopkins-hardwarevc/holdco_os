@@ -63,6 +63,7 @@ async function requestToken(body: Record<string, string>): Promise<TokenSet> {
 
 type GraphEvent = {
   id: string;
+  iCalUId?: string;
   subject?: string;
   isAllDay?: boolean;
   showAs?: string;
@@ -119,7 +120,7 @@ export const outlookProvider: CalendarProvider = {
     const params = new URLSearchParams({
       startDateTime: startISO,
       endDateTime: endISO,
-      $select: "subject,start,end,isAllDay,showAs,attendees",
+      $select: "subject,start,end,isAllDay,showAs,attendees,iCalUId",
       $top: "100",
       $orderby: "start/dateTime",
     });
@@ -145,6 +146,7 @@ export const outlookProvider: CalendarProvider = {
       attendees: Array.isArray(e.attendees) ? e.attendees.length : 0,
       isAllDay: Boolean(e.isAllDay),
       showAs: e.showAs ?? "unknown",
+      sharedId: e.iCalUId ?? null,
     }));
   },
 };

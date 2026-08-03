@@ -33,6 +33,7 @@ export function normalizeSubject(subject: string): string {
 export type MappedSignal = {
   workDate: string;
   externalId: string;
+  sharedId: string | null;
   evidence: string;
   provenance: string;
   chargeType: "project" | "indirect";
@@ -137,6 +138,7 @@ export function eventsToSignals(
     out.push({
       workDate: e.startISO.slice(0, 10),
       externalId: e.id,
+      sharedId: e.sharedId ?? null,
       evidence: subject,
       provenance: `${hours} h · ${e.attendees} attendee${e.attendees === 1 ? "" : "s"}${prop.learned ? " · learned" : ""}`,
       chargeType: prop.chargeType,

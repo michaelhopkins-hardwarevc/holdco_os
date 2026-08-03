@@ -29,9 +29,17 @@ import {
   listEntityPhases,
   listIndirectCodes,
   listOpenSignals,
+  listPeerChargesForSharedIds,
   listProjects,
   listResources,
 } from "@/lib/queries";
+import {
+  type Charge,
+  chargeKey,
+  consistencyNudge,
+  type Nudge,
+  type PeerCharge,
+} from "@/lib/consistency";
 import {
   addWeeks,
   deriveWeekStatus,
@@ -116,6 +124,50 @@ export default async function TimesheetPage({
   const { res, entries, projects, phases, codes, signals, teamResources } = data;
   const isOwn = res.userId === ctx.appUser.id;
   const canOverride = isManager;
+
+  // Consistency nudges (Signals step 3): for signals tied to a shared meeting,
+  // see how teammates charged the same meeting and flag a divergent guess.
+  const nudges = new Map<string, Nudge>();
+  const sharedIds = [
+    ...new Set(signals.map((s) => s.sharedId).filter((x): x is string => !!x)),
+  ];
+  if (sharedIds.length > 0) {
+    const peerRows = await runWithUser(ctx.authUser.id, (tx) =>
+      listPeerChargesForSharedIds(tx, active.entityId, res.id, sharedIds),
+    );
+    const bySharedId = new Map<string, PeerCharge[]>();
+    for (const r of peerRows) {
+      if (!r.sharedId) continue;
+      const label =
+        r.chargeType === "project"
+          ? (r.projectCode ?? "a project")
+          : (r.indirectCodeLabel ?? "an indirect code");
+      const list = bySharedId.get(r.sharedId) ?? [];
+      list.push({
+        charge: {
+          chargeType: r.chargeType,
+          projectId: r.projectId,
+          phaseId: r.phaseId,
+          indirectCodeId: r.indirectCodeId,
+        },
+        label,
+      });
+      bySharedId.set(r.sharedId, list);
+    }
+    for (const s of signals) {
+      if (!s.sharedId) continue;
+      const peers = bySharedId.get(s.sharedId);
+      if (!peers) continue;
+      const myCharge: Charge = {
+        chargeType: s.chargeType,
+        projectId: s.projectId,
+        phaseId: s.phaseId,
+        indirectCodeId: s.indirectCodeId,
+      };
+      const n = consistencyNudge(chargeKey(myCharge), peers);
+      if (n) nudges.set(s.id, n);
+    }
+  }
   const outlookConnected =
     isOwn &&
     Boolean(await getOutlookConnection(active.entityId, ctx.appUser.id));
@@ -338,6 +390,22 @@ export default async function TimesheetPage({
                       : (s.indirectCodeLabel ?? "Indirect")}{" "}
                     · {s.confidence.toUpperCase()}
                   </div>
+                  {nudges.has(s.id) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                      <span>
+                        {nudges.get(s.id)!.agree} of {nudges.get(s.id)!.total}{" "}
+                        teammates logged this meeting to{" "}
+                        <strong>{nudges.get(s.id)!.label}</strong>.
+                      </span>
+                      <form action={acceptSignalAction}>
+                        <input type="hidden" name="signalId" value={s.id} />
+                        <input type="hidden" name="charge" value={nudges.get(s.id)!.value} />
+                        <Button type="submit" variant="outline" size="xs">
+                          Use their charge
+                        </Button>
+                      </form>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm">

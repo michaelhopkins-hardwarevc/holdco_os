@@ -214,3 +214,23 @@ works).
   projects, resources, indirect codes, expenses, invoices, and time entries;
   every list page has an Export CSV button. Same membership gate as the report
   routes.
+
+## Signals step 3: consistency nudge
+
+- **Shared meeting id via Outlook `iCalUId`.** A new `signal.shared_id` holds the
+  calendar's shared event id, which is identical across every attendee's copy of
+  the meeting. That's how we tell that several resources were in the same event
+  without any cross-user calendar access.
+- **Nudge, not enforcement.** `consistencyNudge` fires only when a strict
+  majority of teammates (at least two) who logged the same meeting agree on a
+  charge that differs from yours. Mixed charging on one meeting is legitimate,
+  so it's a one-click suggestion ("3 of 4 logged this to P1 — Use their
+  charge"), never a block.
+- **Peers = accepted signals.** We compare against teammates who actually logged
+  the meeting (accepted signals with the same shared_id, excluding your own),
+  not open proposals. Using their charge reuses the normal accept path, so it
+  also teaches the learned rule (step 2).
+- **hookTimeout raised to 30s.** DB tests bootstrap a fresh PGlite and run all
+  migrations in beforeEach; with the suite now at 20 files the default 10s hook
+  timeout flaked under parallel load. The setup genuinely needs the time; this
+  is not masking a logic failure.

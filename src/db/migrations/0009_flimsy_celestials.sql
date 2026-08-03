@@ -1,0 +1,1 @@
+ALTER TABLE "signal" ADD COLUMN "shared_id" text;

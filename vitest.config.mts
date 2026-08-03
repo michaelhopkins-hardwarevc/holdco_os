@@ -7,6 +7,10 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    // DB tests bootstrap a fresh in-process Postgres (PGlite) and run every
+    // migration in beforeEach; under parallel load that can exceed the default
+    // 10s hook timeout, so give setup/teardown room.
+    hookTimeout: 30000,
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     // Playwright specs live in ./e2e and are run by Playwright, not Vitest.

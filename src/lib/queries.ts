@@ -4,8 +4,10 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   isNull,
   lte,
+  ne,
   notInArray,
   type ExtractTablesWithRelations,
 } from "drizzle-orm";
@@ -385,6 +387,7 @@ export function listOpenSignals(
       id: signal.id,
       workDate: signal.workDate,
       provider: signal.provider,
+      sharedId: signal.sharedId,
       evidence: signal.evidence,
       provenance: signal.provenance,
       chargeType: signal.chargeType,
@@ -412,6 +415,43 @@ export function listOpenSignals(
       ),
     )
     .orderBy(asc(signal.workDate));
+}
+
+/**
+ * How OTHER resources charged the same meetings (matched by shared_id), from
+ * signals they already accepted. Feeds the consistency nudge (Signals step 3).
+ */
+export function listPeerChargesForSharedIds(
+  db: QueryDb,
+  entityId: string,
+  excludeResourceId: string,
+  sharedIds: string[],
+) {
+  return db
+    .select({
+      sharedId: signal.sharedId,
+      resourceId: signal.resourceId,
+      chargeType: signal.chargeType,
+      projectId: signal.projectId,
+      phaseId: signal.phaseId,
+      indirectCodeId: signal.indirectCodeId,
+      projectCode: project.code,
+      phaseName: phase.name,
+      indirectCodeLabel: indirectCode.code,
+    })
+    .from(signal)
+    .leftJoin(project, eq(project.id, signal.projectId))
+    .leftJoin(phase, eq(phase.id, signal.phaseId))
+    .leftJoin(indirectCode, eq(indirectCode.id, signal.indirectCodeId))
+    .where(
+      and(
+        eq(signal.entityId, entityId),
+        eq(signal.state, "accepted"),
+        ne(signal.resourceId, excludeResourceId),
+        inArray(signal.sharedId, sharedIds),
+        isNull(signal.deletedAt),
+      ),
+    );
 }
 
 /** Learned signal rules for a resource, with charge labels for display. */

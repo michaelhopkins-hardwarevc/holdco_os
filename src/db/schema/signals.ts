@@ -73,6 +73,10 @@ export const signal = pgTable(
     workDate: text("work_date").notNull(), // YYYY-MM-DD (matches time_entry.work_date)
     provider: text("provider").notNull(),
     externalId: text("external_id").notNull(),
+    // Shared meeting id (Outlook iCalUId): the SAME value across every attendee's
+    // calendar, so signals from different resources for one meeting can be
+    // grouped for the consistency nudge. Null for sources without a shared id.
+    sharedId: text("shared_id"),
     evidence: text("evidence").notNull(),
     provenance: text("provenance"),
     // Proposed charge: exactly one of project (+phase) or indirect code.

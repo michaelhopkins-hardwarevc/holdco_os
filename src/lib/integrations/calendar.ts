@@ -10,6 +10,9 @@ export type CalendarEvent = {
   isAllDay: boolean;
   // "free" | "tentative" | "busy" | "oof" | "workingElsewhere" | "unknown"
   showAs: string;
+  // Shared meeting id (same across every attendee's calendar), when the
+  // provider exposes one. Used to detect when teammates were in the same event.
+  sharedId?: string | null;
 };
 
 export type TokenSet = {
