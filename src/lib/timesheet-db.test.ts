@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { createTestDb, type TestDb } from "@/db/test-helpers";
 import {
+  addSingleEntry,
   applyTimesheet,
   submitTimesheetWeek,
   TimesheetLockedError,
@@ -159,6 +160,44 @@ describe("applyTimesheet", () => {
     expect(live.filter((r) => r.deletedAt === null)).toHaveLength(0);
   });
 
+  it("honors a manager's per-cell rate and billable override", async () => {
+    const s = await setup();
+    await applyTimesheet(db, s.actor, s.rates, {
+      entityId: s.entityId,
+      resourceId: s.resourceId,
+      weekStart: WEEK_START,
+      cells: [
+        {
+          chargeType: "project",
+          projectId: s.projectId,
+          phaseId: s.phaseId,
+          date: "2026-07-27",
+          hours: 8,
+          billRate: 30000,
+          billable: true,
+        },
+        {
+          chargeType: "project",
+          projectId: s.projectId,
+          phaseId: s.phaseId,
+          date: "2026-07-28",
+          hours: 8,
+          billable: false, // manager marks this day non-billable
+        },
+      ],
+    });
+    const rows = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.resourceId, s.resourceId));
+    const billed = rows.find((r) => r.workDate === "2026-07-27")!;
+    const notBilled = rows.find((r) => r.workDate === "2026-07-28")!;
+    expect(billed.billRate).toBe(30000);
+    expect(billed.billableAmount).toBe(240000); // 8 * 30000
+    expect(notBilled.billable).toBe(false);
+    expect(notBilled.billableAmount).toBe(0);
+  });
+
   it("refuses to edit a locked (submitted) week", async () => {
     const s = await setup();
     const input = {
@@ -174,6 +213,61 @@ describe("applyTimesheet", () => {
     await expect(applyTimesheet(db, s.actor, s.rates, input)).rejects.toBeInstanceOf(
       TimesheetLockedError,
     );
+  });
+});
+
+describe("addSingleEntry", () => {
+  const single = (over: {
+    date: string;
+    chargeType: "project" | "indirect";
+    projectId: string | null;
+    phaseId: string | null;
+    indirectCodeId: string | null;
+    hours: number;
+    entityId: string;
+    resourceId: string;
+  }) => over;
+
+  it("adds one entry and folds a duplicate charge/day", async () => {
+    const s = await setup();
+    const base = { entityId: s.entityId, resourceId: s.resourceId };
+    await addSingleEntry(
+      db,
+      s.actor,
+      s.rates,
+      single({ ...base, date: "2026-07-27", chargeType: "project", projectId: s.projectId, phaseId: s.phaseId, indirectCodeId: null, hours: 2 }),
+    );
+    await addSingleEntry(
+      db,
+      s.actor,
+      s.rates,
+      single({ ...base, date: "2026-07-27", chargeType: "project", projectId: s.projectId, phaseId: s.phaseId, indirectCodeId: null, hours: 3 }),
+    );
+    const rows = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.resourceId, s.resourceId));
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0].hours)).toBe(5);
+  });
+
+  it("refuses to add to a locked week", async () => {
+    const s = await setup();
+    await addSingleEntry(
+      db,
+      s.actor,
+      s.rates,
+      single({ entityId: s.entityId, resourceId: s.resourceId, date: "2026-07-27", chargeType: "project", projectId: s.projectId, phaseId: s.phaseId, indirectCodeId: null, hours: 2 }),
+    );
+    await submitTimesheetWeek(db, s.actor, s.entityId, s.resourceId, WEEK_START);
+    await expect(
+      addSingleEntry(
+        db,
+        s.actor,
+        s.rates,
+        single({ entityId: s.entityId, resourceId: s.resourceId, date: "2026-07-28", chargeType: "indirect", projectId: null, phaseId: null, indirectCodeId: s.indirectCodeId, hours: 1 }),
+      ),
+    ).rejects.toThrow();
   });
 });
 

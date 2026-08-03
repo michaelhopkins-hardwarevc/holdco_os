@@ -12,6 +12,10 @@ export type TimesheetCell = {
   indirectCodeId?: string | null;
   date: string;
   hours: number;
+  // Optional manager overrides of the auto-populated values (cents / flag).
+  billRate?: number | null;
+  costRate?: number | null;
+  billable?: boolean;
 };
 
 export type SaveTimesheetInput = {

@@ -76,12 +76,17 @@ export async function applyTimesheet(
     });
     seen.add(key);
 
-    const billable = cell.chargeType === "project";
+    // Rates/billable auto-populate from the resource but a manager can override
+    // them per cell. Indirect time never bills.
+    const billRate = cell.billRate ?? res.billRate;
+    const costRate = cell.costRate ?? res.costRate;
+    const billable =
+      cell.chargeType === "project" ? (cell.billable ?? true) : false;
     const { billableAmount, costAmount } = computeAmounts({
       hours: Number.isFinite(hours) ? hours : 0,
       billable,
-      billRate: res.billRate,
-      costRate: res.costRate,
+      billRate,
+      costRate,
     });
     const found = existingByKey.get(key);
 
@@ -101,8 +106,8 @@ export async function applyTimesheet(
         .set({
           hours: hours.toFixed(2),
           billable,
-          billRate: res.billRate,
-          costRate: res.costRate,
+          billRate,
+          costRate,
           billableAmount,
           costAmount,
           updatedBy: actor.actorId,
@@ -120,8 +125,8 @@ export async function applyTimesheet(
         indirectCodeId,
         hours: hours.toFixed(2),
         billable,
-        billRate: res.billRate,
-        costRate: res.costRate,
+        billRate,
+        costRate,
         billableAmount,
         costAmount,
         status: "draft",
@@ -138,6 +143,99 @@ export async function applyTimesheet(
         .set({ deletedAt: new Date(), updatedBy: actor.actorId })
         .where(eq(timeEntry.id, e.id));
     }
+  }
+}
+
+/** Add one entry to the week (the single-entry add form), folding into an
+ *  existing draft cell for the same charge + day. Refuses a locked week. */
+export async function addSingleEntry(
+  db: QueryDb,
+  actor: Actor,
+  res: ResourceRates,
+  params: {
+    entityId: string;
+    resourceId: string;
+    date: string;
+    chargeType: "project" | "indirect";
+    projectId: string | null;
+    phaseId: string | null;
+    indirectCodeId: string | null;
+    hours: number;
+  },
+): Promise<void> {
+  const week = getWeek(params.date);
+  const weekEntries = await db
+    .select({ status: timeEntry.status })
+    .from(timeEntry)
+    .where(
+      and(
+        eq(timeEntry.entityId, params.entityId),
+        eq(timeEntry.resourceId, params.resourceId),
+        gte(timeEntry.workDate, week.start),
+        lte(timeEntry.workDate, week.end),
+        isNull(timeEntry.deletedAt),
+      ),
+    );
+  if (!weekEntries.every((e) => e.status === "draft")) {
+    throw new TimesheetLockedError();
+  }
+  if (!(params.hours > 0)) return;
+
+  const billable = params.chargeType === "project";
+  const rate = { billRate: res.billRate, costRate: res.costRate };
+
+  const dayEntries = await db
+    .select()
+    .from(timeEntry)
+    .where(
+      and(
+        eq(timeEntry.resourceId, params.resourceId),
+        eq(timeEntry.workDate, params.date),
+        eq(timeEntry.status, "draft"),
+        isNull(timeEntry.deletedAt),
+      ),
+    );
+  const match = dayEntries.find(
+    (e) =>
+      e.chargeType === params.chargeType &&
+      e.projectId === params.projectId &&
+      e.phaseId === params.phaseId &&
+      e.indirectCodeId === params.indirectCodeId,
+  );
+
+  if (match) {
+    const newHours = Number(match.hours) + params.hours;
+    const amounts = computeAmounts({ hours: newHours, billable, ...rate });
+    await db
+      .update(timeEntry)
+      .set({
+        hours: newHours.toFixed(2),
+        billableAmount: amounts.billableAmount,
+        costAmount: amounts.costAmount,
+        updatedBy: actor.actorId,
+      })
+      .where(eq(timeEntry.id, match.id));
+  } else {
+    const amounts = computeAmounts({ hours: params.hours, billable, ...rate });
+    await db.insert(timeEntry).values({
+      organizationId: actor.orgId,
+      entityId: params.entityId,
+      resourceId: params.resourceId,
+      workDate: params.date,
+      chargeType: params.chargeType,
+      projectId: params.projectId,
+      phaseId: params.phaseId,
+      indirectCodeId: params.indirectCodeId,
+      hours: params.hours.toFixed(2),
+      billable,
+      billRate: res.billRate,
+      costRate: res.costRate,
+      billableAmount: amounts.billableAmount,
+      costAmount: amounts.costAmount,
+      status: "draft",
+      createdBy: actor.actorId,
+      updatedBy: actor.actorId,
+    });
   }
 }
 

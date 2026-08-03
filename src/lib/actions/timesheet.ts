@@ -11,6 +11,7 @@ import {
   requireContext,
 } from "@/lib/auth";
 import {
+  addSingleEntry,
   applyTimesheet,
   submitTimesheetWeek,
   transitionTimesheetWeek,
@@ -41,6 +42,34 @@ export async function saveTimesheet(input: SaveTimesheetInput): Promise<void> {
     { orgId: ctx.appUser.organizationId, actorId: ctx.appUser.id },
     { billRate: res.billRate, costRate: res.costRate },
     input,
+  );
+  revalidatePath("/timesheet");
+}
+
+// Single-entry add form: add one charge on one day.
+export async function addTimeEntry(formData: FormData): Promise<void> {
+  const entityId = String(formData.get("entityId") ?? "");
+  const resourceId = String(formData.get("resourceId") ?? "");
+  const charge = String(formData.get("charge") ?? "");
+  const date = String(formData.get("date") ?? "");
+  const hours = Number(formData.get("hours") ?? 0);
+  const { ctx, res } = await authorizeTimesheet(entityId, resourceId);
+
+  const [kind, a, b] = charge.split(":");
+  const target =
+    kind === "project" && a
+      ? { chargeType: "project" as const, projectId: a, phaseId: b || null, indirectCodeId: null }
+      : kind === "indirect" && a
+        ? { chargeType: "indirect" as const, projectId: null, phaseId: null, indirectCodeId: a }
+        : null;
+  if (!target) throw new Error("Pick a project or indirect code.");
+  if (!(hours > 0)) throw new Error("Enter hours greater than zero.");
+
+  await addSingleEntry(
+    db,
+    { orgId: ctx.appUser.organizationId, actorId: ctx.appUser.id },
+    { billRate: res.billRate, costRate: res.costRate },
+    { entityId, resourceId, date, ...target, hours },
   );
   revalidatePath("/timesheet");
 }

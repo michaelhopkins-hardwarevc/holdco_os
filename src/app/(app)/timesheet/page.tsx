@@ -18,16 +18,18 @@ import {
   dismissSignalAction,
   generateSampleSignals,
 } from "@/lib/actions/signals";
-import { submitWeek } from "@/lib/actions/timesheet";
-import { requireActiveEntity } from "@/lib/auth";
+import { addTimeEntry, submitWeek } from "@/lib/actions/timesheet";
+import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
 import { getOutlookConnection } from "@/lib/integrations/outlook-store";
 import {
+  getResource,
   getResourceForUser,
   getWeekEntries,
   listEntityPhases,
   listIndirectCodes,
   listOpenSignals,
   listProjects,
+  listResources,
 } from "@/lib/queries";
 import {
   addWeeks,
@@ -44,6 +46,7 @@ export default async function TimesheetPage({
 }: {
   searchParams: Promise<{
     week?: string;
+    resource?: string;
     syncEvents?: string;
     syncCreated?: string;
     syncError?: string;
@@ -52,6 +55,7 @@ export default async function TimesheetPage({
   const { ctx, active } = await requireActiveEntity();
   const sp = await searchParams;
   const week = getWeek(sp.week ?? toISODate(new Date()));
+  const isManager = MANAGER_ROLES.includes(active.role);
 
   let syncMessage: string | null = null;
   let syncIsError = false;
@@ -72,10 +76,21 @@ export default async function TimesheetPage({
   }
 
   const data = await runWithUser(ctx.authUser.id, async (tx) => {
-    const [res] = await getResourceForUser(tx, active.entityId, ctx.appUser.id);
-    if (!res) return { res: null as null };
+    // A manager can open a team member's week via ?resource; otherwise own.
+    let res: Awaited<ReturnType<typeof getResourceForUser>>[number] | undefined;
+    if (sp.resource && isManager) {
+      [res] = await getResource(tx, active.entityId, sp.resource);
+    }
+    if (!res) {
+      [res] = await getResourceForUser(tx, active.entityId, ctx.appUser.id);
+    }
+    const teamResources = isManager
+      ? await listResources(tx, active.entityId, { activeOnly: true })
+      : [];
+    if (!res) return { res: null as null, teamResources };
     return {
       res,
+      teamResources,
       entries: await getWeekEntries(tx, active.entityId, res.id, week.start, week.end),
       projects: await listProjects(tx, active.entityId),
       phases: await listEntityPhases(tx, active.entityId),
@@ -97,10 +112,12 @@ export default async function TimesheetPage({
     );
   }
 
-  const { res, entries, projects, phases, codes, signals } = data;
-  const outlookConnected = Boolean(
-    await getOutlookConnection(active.entityId, ctx.appUser.id),
-  );
+  const { res, entries, projects, phases, codes, signals, teamResources } = data;
+  const isOwn = res.userId === ctx.appUser.id;
+  const canOverride = isManager;
+  const outlookConnected =
+    isOwn &&
+    Boolean(await getOutlookConnection(active.entityId, ctx.appUser.id));
 
   // The charge targets a user can assign a signal to (projects + phases, and
   // indirect codes), for the editable per-signal selector.
@@ -144,6 +161,9 @@ export default async function TimesheetPage({
         phaseId: e.phaseId,
         indirectCodeId: e.indirectCodeId,
         hours: {},
+        billRate: e.billRate,
+        costRate: e.costRate,
+        billable: e.billable,
       };
       rowMap.set(key, row);
     }
@@ -165,6 +185,26 @@ export default async function TimesheetPage({
           <p className="text-muted-foreground">
             Week of {week.start} · status: {status}
           </p>
+          {isManager && teamResources.length > 0 && (
+            <form className="mt-2 flex items-center gap-2">
+              <input type="hidden" name="week" value={week.start} />
+              <span className="text-xs text-muted-foreground">Viewing:</span>
+              <select
+                name="resource"
+                defaultValue={res.id}
+                className="h-8 rounded-md border bg-transparent px-2 text-sm"
+              >
+                {teamResources.map((tr) => (
+                  <option key={tr.id} value={tr.id}>
+                    {tr.name}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" variant="outline" size="sm">
+                View
+              </Button>
+            </form>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -338,11 +378,71 @@ export default async function TimesheetPage({
         days={week.days}
         dayLabels={dayLabels}
         editable={editable}
+        canOverride={canOverride}
+        resourceBillRate={res.billRate}
+        resourceCostRate={res.costRate}
         initialRows={rows}
         projects={projects.map((p) => ({ id: p.id, code: p.code, name: p.name }))}
         phases={phases}
         indirectCodes={codes.map((c) => ({ id: c.id, code: c.code }))}
       />
+
+      {editable && (
+        <form
+          action={addTimeEntry}
+          className="flex flex-wrap items-end gap-3 rounded-lg border p-3"
+        >
+          <input type="hidden" name="entityId" value={active.entityId} />
+          <input type="hidden" name="resourceId" value={res.id} />
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Add a single entry</span>
+            <select
+              name="charge"
+              required
+              className="h-9 rounded-md border bg-transparent px-2 text-sm"
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Choose a charge
+              </option>
+              {chargeTargets.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Day</span>
+            <select
+              name="date"
+              className="h-9 rounded-md border bg-transparent px-2 text-sm"
+              defaultValue={week.days[0]}
+            >
+              {week.days.map((d, i) => (
+                <option key={d} value={d}>
+                  {weekdayLabel(i)} {d.slice(5)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Hours</span>
+            <input
+              type="number"
+              name="hours"
+              min={0}
+              step={0.25}
+              required
+              className="h-9 w-24 rounded-md border bg-transparent px-2 text-sm"
+              placeholder="2"
+            />
+          </div>
+          <Button type="submit" variant="outline">
+            Add entry
+          </Button>
+        </form>
+      )}
 
       {editable && statuses.length > 0 && (
         <form action={submitWeek} className="border-t pt-4">

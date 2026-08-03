@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { saveTimesheet } from "@/lib/actions/timesheet";
+import { centsToDollars, dollarsToCentsOrZero } from "@/lib/money";
 
 export type GridRow = {
   key: string;
@@ -21,6 +22,9 @@ export type GridRow = {
   phaseId: string | null;
   indirectCodeId: string | null;
   hours: Record<string, number>;
+  billRate: number; // cents
+  costRate: number; // cents
+  billable: boolean;
 };
 
 type ProjectOpt = { id: string; code: string; name: string };
@@ -34,6 +38,9 @@ export function TimesheetGrid({
   days,
   dayLabels,
   editable,
+  canOverride,
+  resourceBillRate,
+  resourceCostRate,
   initialRows,
   projects,
   phases,
@@ -45,6 +52,9 @@ export function TimesheetGrid({
   days: string[];
   dayLabels: string[];
   editable: boolean;
+  canOverride: boolean;
+  resourceBillRate: number;
+  resourceCostRate: number;
   initialRows: GridRow[];
   projects: ProjectOpt[];
   phases: PhaseOpt[];
@@ -55,7 +65,6 @@ export function TimesheetGrid({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  // "Add row" controls.
   const [projectId, setProjectId] = useState<string>("");
   const [phaseId, setPhaseId] = useState<string>("");
   const [indirectCodeId, setIndirectCodeId] = useState<string>("");
@@ -76,6 +85,12 @@ export function TimesheetGrid({
     );
   }
 
+  function patchRow(rowKey: string, patch: Partial<GridRow>) {
+    setRows((prev) =>
+      prev.map((r) => (r.key === rowKey ? { ...r, ...patch } : r)),
+    );
+  }
+
   function addProjectRow() {
     if (!projectId || !phaseId) return;
     const key = `project:${projectId}:${phaseId}`;
@@ -92,6 +107,9 @@ export function TimesheetGrid({
         phaseId,
         indirectCodeId: null,
         hours: {},
+        billRate: resourceBillRate,
+        costRate: resourceCostRate,
+        billable: true,
       },
     ]);
     setPhaseId("");
@@ -112,6 +130,9 @@ export function TimesheetGrid({
         phaseId: null,
         indirectCodeId,
         hours: {},
+        billRate: 0,
+        costRate: resourceCostRate,
+        billable: false,
       },
     ]);
     setIndirectCodeId("");
@@ -121,6 +142,7 @@ export function TimesheetGrid({
     rows.reduce((sum, r) => sum + (r.hours[d] ?? 0), 0),
   );
   const grandTotal = dayTotals.reduce((a, b) => a + b, 0);
+  const colCount = days.length + (canOverride ? 3 : 2);
 
   function onSave() {
     setError(null);
@@ -132,6 +154,9 @@ export function TimesheetGrid({
         indirectCodeId: r.indirectCodeId,
         date: d,
         hours: r.hours[d] ?? 0,
+        billRate: r.billRate,
+        costRate: r.costRate,
+        billable: r.billable,
       })),
     );
     startTransition(async () => {
@@ -157,12 +182,15 @@ export function TimesheetGrid({
                 </th>
               ))}
               <th className="px-2 py-2 text-right font-medium">Total</th>
+              {canOverride && (
+                <th className="px-2 py-2 text-left font-medium">Billing</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={days.length + 2} className="px-2 py-3 text-muted-foreground">
+                <td colSpan={colCount} className="px-2 py-3 text-muted-foreground">
                   No time yet this week.
                 </td>
               </tr>
@@ -186,6 +214,59 @@ export function TimesheetGrid({
                       </td>
                     ))}
                     <td className="px-2 py-2 text-right font-medium">{rowTotal}</td>
+                    {canOverride && (
+                      <td className="px-2 py-1">
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                            Bill $
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              disabled={
+                                !editable || pending || r.chargeType === "indirect"
+                              }
+                              className="h-8 w-20"
+                              value={centsToDollars(r.billRate)}
+                              onChange={(e) =>
+                                patchRow(r.key, {
+                                  billRate: dollarsToCentsOrZero(e.target.value),
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                            Cost $
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              disabled={!editable || pending}
+                              className="h-8 w-20"
+                              value={centsToDollars(r.costRate)}
+                              onChange={(e) =>
+                                patchRow(r.key, {
+                                  costRate: dollarsToCentsOrZero(e.target.value),
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <input
+                              type="checkbox"
+                              disabled={
+                                !editable || pending || r.chargeType === "indirect"
+                              }
+                              checked={r.billable}
+                              onChange={(e) =>
+                                patchRow(r.key, { billable: e.target.checked })
+                              }
+                            />
+                            Billable
+                          </label>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })
@@ -200,6 +281,7 @@ export function TimesheetGrid({
                 </td>
               ))}
               <td className="px-2 py-2 text-right">{grandTotal}</td>
+              {canOverride && <td />}
             </tr>
           </tfoot>
         </table>

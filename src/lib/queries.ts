@@ -235,6 +235,8 @@ export function getWeekEntries(
       phaseId: timeEntry.phaseId,
       indirectCodeId: timeEntry.indirectCodeId,
       billable: timeEntry.billable,
+      billRate: timeEntry.billRate,
+      costRate: timeEntry.costRate,
       billableAmount: timeEntry.billableAmount,
       costAmount: timeEntry.costAmount,
       status: timeEntry.status,
