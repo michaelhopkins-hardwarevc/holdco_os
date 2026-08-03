@@ -1,8 +1,19 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "@/db/test-helpers";
-import { entity, organization, resource } from "@/db/schema";
-import { listResources, summarizePhases } from "@/lib/queries";
+import {
+  client,
+  entity,
+  expense,
+  organization,
+  project,
+  resource,
+} from "@/db/schema";
+import {
+  listInvoiceableExpenses,
+  listResources,
+  summarizePhases,
+} from "@/lib/queries";
 
 let pg: TestDb["pg"];
 let db: TestDb["db"];
@@ -70,5 +81,70 @@ describe("listResources", () => {
 
     const aRes = await listResources(db, a.entityId);
     expect(aRes.map((r) => r.name)).toEqual(["A"]);
+  });
+});
+
+describe("listInvoiceableExpenses", () => {
+  it("returns billable expenses and excludes non-billable ones", async () => {
+    const { orgId, entityId } = await makeEntity("Exp");
+    const [res] = await db
+      .insert(resource)
+      .values({ organizationId: orgId, entityId, name: "R" })
+      .returning();
+    const [cli] = await db
+      .insert(client)
+      .values({ organizationId: orgId, entityId, name: "C" })
+      .returning();
+    const [proj] = await db
+      .insert(project)
+      .values({
+        organizationId: orgId,
+        entityId,
+        clientId: cli.id,
+        code: "P1",
+        name: "P",
+        type: "time_materials",
+      })
+      .returning();
+    await db.insert(expense).values([
+      {
+        organizationId: orgId,
+        entityId,
+        resourceId: res.id,
+        projectId: proj.id,
+        expenseDate: "2026-08-01",
+        category: "travel",
+        amount: 10000,
+        billable: true,
+        status: "submitted",
+      },
+      {
+        organizationId: orgId,
+        entityId,
+        resourceId: res.id,
+        projectId: proj.id,
+        expenseDate: "2026-08-01",
+        category: "meals",
+        amount: 5000,
+        billable: false,
+        status: "submitted",
+      },
+      {
+        organizationId: orgId,
+        entityId,
+        resourceId: res.id,
+        projectId: proj.id,
+        expenseDate: "2026-08-01",
+        category: "lodging",
+        amount: 20000,
+        billable: true,
+        status: "invoiced", // already billed -> excluded
+      },
+    ]);
+
+    const rows = await listInvoiceableExpenses(db, entityId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount).toBe(10000);
+    expect(rows[0].billable).toBe(true);
   });
 });

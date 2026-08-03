@@ -124,6 +124,7 @@ npm run db:generate    # create a migration from the schema (no DB needed)
 npm run db:migrate     # apply migrations to the database in DATABASE_URL
 npm run db:seed        # load the sample design-firm data (safe: skips if present)
 npm run db:studio      # browse data
+npm run setup:storage  # one-time: create the private "receipts" bucket (expenses)
 ```
 
 The schema lives in `src/db/schema/` (core identity, Phase 1, and later-phase

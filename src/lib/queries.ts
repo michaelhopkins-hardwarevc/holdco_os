@@ -1,16 +1,19 @@
 import {
   and,
   asc,
+  desc,
   eq,
   gte,
   isNull,
   lte,
+  notInArray,
   type ExtractTablesWithRelations,
 } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   client,
   contact,
+  expense,
   indirectCode,
   membership,
   phase,
@@ -193,6 +196,50 @@ export function getIndirectCode(db: QueryDb, entityId: string, codeId: string) {
       ),
     )
     .limit(1);
+}
+
+// --- Expenses (spec §7.4) ---------------------------------------------------
+
+export function listExpenses(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      id: expense.id,
+      expenseDate: expense.expenseDate,
+      category: expense.category,
+      amount: expense.amount,
+      billable: expense.billable,
+      markupPct: expense.markupPct,
+      status: expense.status,
+      receiptUrl: expense.receiptUrl,
+      projectCode: project.code,
+      projectName: project.name,
+    })
+    .from(expense)
+    .leftJoin(project, eq(project.id, expense.projectId))
+    .where(and(eq(expense.entityId, entityId), isNull(expense.deletedAt)))
+    .orderBy(desc(expense.expenseDate));
+}
+
+/** Billable, not-yet-invoiced expenses available to invoicing (spec §7.4 AC).
+ *  Non-billable expenses are excluded by construction. */
+export function listInvoiceableExpenses(
+  db: QueryDb,
+  entityId: string,
+  projectId?: string,
+) {
+  return db
+    .select()
+    .from(expense)
+    .where(
+      and(
+        eq(expense.entityId, entityId),
+        eq(expense.billable, true),
+        notInArray(expense.status, ["invoiced"]),
+        isNull(expense.deletedAt),
+        projectId ? eq(expense.projectId, projectId) : undefined,
+      ),
+    )
+    .orderBy(desc(expense.expenseDate));
 }
 
 // --- Timesheet (spec §7.3) --------------------------------------------------
