@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { projectStatus, projectType } from "@/db/schema";
 import { createProject } from "@/lib/actions/projects";
@@ -45,9 +46,12 @@ export default async function ProjectsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Projects</h1>
-        <p className="text-muted-foreground">{active.entityName}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Projects</h1>
+          <p className="text-muted-foreground">{active.entityName}</p>
+        </div>
+        <ExportCsvButton type="projects" entityId={active.entityId} />
       </div>
 
       <Table>

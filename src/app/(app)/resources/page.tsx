@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { createResource, setResourceActive } from "@/lib/actions/resources";
 import { ADMIN_ROLES, requireActiveEntity } from "@/lib/auth";
@@ -44,13 +45,16 @@ export default async function ResourcesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Resources</h1>
-        <p className="text-muted-foreground">
-          {active.entityName} · billable people. Link a resource to a user so
-          that person can enter time. Deactivated resources keep their history
-          but are hidden from new time entry.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Resources</h1>
+          <p className="text-muted-foreground">
+            {active.entityName} · billable people. Link a resource to a user so
+            that person can enter time. Deactivated resources keep their history
+            but are hidden from new time entry.
+          </p>
+        </div>
+        <ExportCsvButton type="resources" entityId={active.entityId} />
       </div>
 
       <Table>

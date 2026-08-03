@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TimesheetGrid, type GridRow } from "@/components/timesheet-grid";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { syncOutlook } from "@/lib/actions/connections";
 import {
@@ -225,6 +226,11 @@ export default async function TimesheetPage({
           >
             Next →
           </Link>
+          <ExportCsvButton
+            type="time-entries"
+            entityId={active.entityId}
+            label="Export time"
+          />
         </div>
       </div>
 

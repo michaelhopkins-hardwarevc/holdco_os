@@ -30,6 +30,7 @@ import {
   setIndirectCodeActive,
 } from "@/lib/actions/indirect-codes";
 import { ADMIN_ROLES, requireActiveEntity } from "@/lib/auth";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { listIndirectCodes } from "@/lib/queries";
 
 export default async function IndirectCodesPage() {
@@ -41,11 +42,14 @@ export default async function IndirectCodesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Indirect codes</h1>
-        <p className="text-muted-foreground">
-          {active.entityName} · non-billable time buckets (overhead, PTO, BD…).
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Indirect codes</h1>
+          <p className="text-muted-foreground">
+            {active.entityName} · non-billable time buckets (overhead, PTO, BD…).
+          </p>
+        </div>
+        <ExportCsvButton type="indirect-codes" entityId={active.entityId} />
       </div>
 
       <Table>

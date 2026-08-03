@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { generateInvoice } from "@/lib/actions/invoices";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
@@ -66,12 +67,15 @@ export default async function InvoicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Invoicing, WIP & AR</h1>
-        <p className="text-muted-foreground">
-          {active.entityName} · approved billable time and expenses become
-          invoices. Unbilled value is WIP; sent-and-unpaid invoices are AR.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Invoicing, WIP & AR</h1>
+          <p className="text-muted-foreground">
+            {active.entityName} · approved billable time and expenses become
+            invoices. Unbilled value is WIP; sent-and-unpaid invoices are AR.
+          </p>
+        </div>
+        <ExportCsvButton type="invoices" entityId={active.entityId} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

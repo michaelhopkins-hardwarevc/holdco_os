@@ -181,3 +181,36 @@ works).
   member may read reports; the route checks membership, runs the same
   `reports-db` functions through RLS, and streams `text/csv`. CSV shaping lives
   in `report-csv.ts`; escaping is RFC-4180 (`toCsv`).
+
+## §7.7 Data import/export
+
+- **Header detection over fixed positions.** The interim workbook tabs carry two
+  title/instruction rows above the real header, so the importer locates the
+  header row by matching known column labels (with synonyms) rather than
+  assuming row 1. Normalization keeps `$`/`%`/`#` as words so "Billable?" and
+  "Billable $" don't collide.
+- **Validation report, not all-or-nothing.** Each importer returns
+  {imported, updated, skipped, errors[]}; a bad row is skipped with a plain
+  reason and does not block the rest. Verified against the real workbook: the
+  greyed "example" rows are the only skips, each with a clear message.
+- **Idempotent by natural key.** Employees (name), projects (code), clients
+  (name), and indirect codes (code) are matched and updated in place on
+  re-import, so loading a corrected file does not duplicate. Time entries are
+  appended (no natural key), so a period should be imported once.
+- **Time rows reference by human labels.** The workbook's Time tab names the
+  employee and project by name (dropdowns), so the importer resolves project by
+  name-or-code and employee by name, and reports "not found, import X first"
+  when a dependency is missing. Import order is Employees, Indirect codes,
+  Projects, then Time.
+- **Imported time is `approved`.** Historical time is finalized work, so it
+  lands approved (shows in reports immediately; managers can adjust). Amounts
+  are recomputed from hours x rate for internal consistency with the schema
+  checks rather than trusting the sheet's Billable $/Cost $ columns.
+- **CSV parser is hand-rolled (no dependency).** A small RFC-4180 parser in
+  `import.ts` (quotes, doubled quotes, CR/LF/CRLF, BOM) covers Excel exports;
+  `toCsv` in `reports.ts` handles the export side. Export columns mirror the
+  workbook so an export round-trips back through the importer.
+- **One export route.** `/api/export?type=...&entityId=...` covers clients,
+  projects, resources, indirect codes, expenses, invoices, and time entries;
+  every list page has an Export CSV button. Same membership gate as the report
+  routes.

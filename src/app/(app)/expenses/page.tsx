@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { createExpense } from "@/lib/actions/expenses";
 import { requireActiveEntity } from "@/lib/auth";
@@ -51,12 +52,15 @@ export default async function ExpensesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Expenses</h1>
-        <p className="text-muted-foreground">
-          {active.entityName} · billable expenses (plus any markup) flow to
-          invoicing; non-billable ones stay off client invoices.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Expenses</h1>
+          <p className="text-muted-foreground">
+            {active.entityName} · billable expenses (plus any markup) flow to
+            invoicing; non-billable ones stay off client invoices.
+          </p>
+        </div>
+        <ExportCsvButton type="expenses" entityId={active.entityId} />
       </div>
 
       <Table>

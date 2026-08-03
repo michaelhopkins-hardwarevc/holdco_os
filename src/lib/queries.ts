@@ -467,6 +467,33 @@ export function listSubmittedEntries(db: QueryDb, entityId: string) {
     );
 }
 
+/** All time entries for an entity, flattened for CSV export (spec §7.7). */
+export function listTimeEntries(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      workDate: timeEntry.workDate,
+      resourceName: resource.name,
+      chargeType: timeEntry.chargeType,
+      projectCode: project.code,
+      phaseName: phase.name,
+      indirectCode: indirectCode.code,
+      hours: timeEntry.hours,
+      billable: timeEntry.billable,
+      billRate: timeEntry.billRate,
+      billableAmount: timeEntry.billableAmount,
+      costAmount: timeEntry.costAmount,
+      status: timeEntry.status,
+      notes: timeEntry.notes,
+    })
+    .from(timeEntry)
+    .innerJoin(resource, eq(resource.id, timeEntry.resourceId))
+    .leftJoin(project, eq(project.id, timeEntry.projectId))
+    .leftJoin(phase, eq(phase.id, timeEntry.phaseId))
+    .leftJoin(indirectCode, eq(indirectCode.id, timeEntry.indirectCodeId))
+    .where(and(eq(timeEntry.entityId, entityId), isNull(timeEntry.deletedAt)))
+    .orderBy(desc(timeEntry.workDate));
+}
+
 // --- Pure budget math (spec §7.2: project page shows a budget summary) -------
 
 export type PhaseBudget = {
