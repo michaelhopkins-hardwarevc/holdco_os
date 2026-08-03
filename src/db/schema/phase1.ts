@@ -202,6 +202,8 @@ export const timeEntry = pgTable(
     costAmount: integer("cost_amount").notNull().default(0),
     notes: text("notes"),
     status: timeEntryStatus("status").notNull().default("draft"),
+    // Set when this entry is pulled onto an invoice (protects against re-billing).
+    invoiceId: uuid("invoice_id"),
     ...auditColumns(),
   },
   (t) => [
@@ -247,6 +249,7 @@ export const expense = pgTable("expense", {
     .default("0"),
   receiptUrl: text("receipt_url"),
   status: expenseStatus("status").notNull().default("draft"),
+  invoiceId: uuid("invoice_id"),
   ...auditColumns(),
 }).enableRLS();
 

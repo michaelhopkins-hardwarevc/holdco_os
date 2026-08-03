@@ -125,3 +125,29 @@ works).
   Next.js 15.5.22 itself**. npm's suggested "fix" is to downgrade to next@9,
   which is wrong. These clear when Next ships a patch release; no action for the
   scaffold and they do not affect the placeholder deploy.
+
+## §7.5 Invoicing, WIP & AR
+
+- **Reconciliation is the anchor.** `invoicing-db.test.ts` proves invoice total
+  == sum(lines) == sum(invoiced time billable_amount) + sum(billable expense
+  values), that WIP drops to 0 when everything is invoiced and returns on void,
+  and that AR aging + payments tie out. This is the "numbers tie out" test the
+  spec requires.
+- **Double-billing is blocked two ways.** (1) `generateDraftInvoice` only pulls
+  time with `status='approved'` and `invoice_id IS NULL`, then flips it to
+  `invoiced` + links the invoice id; the same records can never be pulled twice.
+  (2) A DB trigger (`guard_invoiced_time_entry`, migration 0008) rejects any
+  UPDATE that changes billing fields on an already-`invoiced` row. Voiding is
+  still allowed because it sets status back to `approved` first.
+- **Time/expense lines are derived, not editable.** Only `manual`/`fixed` lines
+  can be edited or removed on a draft. To change billed time you void the
+  invoice (which releases the records back to WIP) and regenerate. This keeps
+  the invoice reconcilable to its underlying records at all times.
+- **pdf-lib for the branded PDF.** Chosen over a headless-browser renderer
+  (Puppeteer/Playwright) because it is pure JS with no native binaries, so it
+  runs unchanged on Vercel's serverless runtime and needs no extra buildpack.
+  PDFs are stored in a private `invoices` Storage bucket and served via
+  short-lived signed URLs (same pattern as receipts).
+- **WIP/AR computed on read, not stored.** No denormalized balances to drift;
+  both are pure aggregates over the underlying records, matching the
+  reconciliation test.

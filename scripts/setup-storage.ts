@@ -13,15 +13,17 @@ async function main() {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  const { error } = await admin.storage.createBucket("receipts", {
-    public: false,
-    fileSizeLimit: "10MB",
-  });
-  if (error && !/already exists/i.test(error.message)) {
-    console.error("Failed to create bucket:", error.message);
-    process.exit(1);
+  for (const name of ["receipts", "invoices"]) {
+    const { error } = await admin.storage.createBucket(name, {
+      public: false,
+      fileSizeLimit: "10MB",
+    });
+    if (error && !/already exists/i.test(error.message)) {
+      console.error(`Failed to create bucket ${name}:`, error.message);
+      process.exit(1);
+    }
+    console.log(`${name} bucket ready`);
   }
-  console.log("receipts bucket ready");
 }
 
 main();

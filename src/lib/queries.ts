@@ -15,7 +15,10 @@ import {
   contact,
   expense,
   indirectCode,
+  invoice,
+  invoiceLine,
   membership,
+  payment,
   phase,
   project,
   resource,
@@ -240,6 +243,69 @@ export function listInvoiceableExpenses(
       ),
     )
     .orderBy(desc(expense.expenseDate));
+}
+
+// --- Invoicing (spec §7.5) --------------------------------------------------
+
+export function listInvoices(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      id: invoice.id,
+      number: invoice.number,
+      status: invoice.status,
+      invoiceDate: invoice.invoiceDate,
+      total: invoice.total,
+      amountPaid: invoice.amountPaid,
+      clientName: client.name,
+      projectCode: project.code,
+    })
+    .from(invoice)
+    .leftJoin(client, eq(client.id, invoice.clientId))
+    .leftJoin(project, eq(project.id, invoice.projectId))
+    .where(and(eq(invoice.entityId, entityId), isNull(invoice.deletedAt)))
+    .orderBy(desc(invoice.number));
+}
+
+export function getInvoice(db: QueryDb, entityId: string, invoiceId: string) {
+  return db
+    .select({
+      id: invoice.id,
+      number: invoice.number,
+      status: invoice.status,
+      invoiceDate: invoice.invoiceDate,
+      periodStart: invoice.periodStart,
+      periodEnd: invoice.periodEnd,
+      subtotal: invoice.subtotal,
+      tax: invoice.tax,
+      total: invoice.total,
+      amountPaid: invoice.amountPaid,
+      terms: invoice.terms,
+      pdfUrl: invoice.pdfUrl,
+      clientName: client.name,
+      projectCode: project.code,
+      projectName: project.name,
+    })
+    .from(invoice)
+    .leftJoin(client, eq(client.id, invoice.clientId))
+    .leftJoin(project, eq(project.id, invoice.projectId))
+    .where(and(eq(invoice.id, invoiceId), eq(invoice.entityId, entityId)))
+    .limit(1);
+}
+
+export function listInvoiceLines(db: QueryDb, invoiceId: string) {
+  return db
+    .select()
+    .from(invoiceLine)
+    .where(and(eq(invoiceLine.invoiceId, invoiceId), isNull(invoiceLine.deletedAt)))
+    .orderBy(asc(invoiceLine.sortOrder));
+}
+
+export function listPayments(db: QueryDb, invoiceId: string) {
+  return db
+    .select()
+    .from(payment)
+    .where(and(eq(payment.invoiceId, invoiceId), isNull(payment.deletedAt)))
+    .orderBy(asc(payment.paymentDate));
 }
 
 // --- Timesheet (spec §7.3) --------------------------------------------------
