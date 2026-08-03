@@ -234,3 +234,35 @@ works).
   migrations in beforeEach; with the suite now at 20 files the default 10s hook
   timeout flaked under parallel load. The setup genuinely needs the time; this
   is not masking a logic failure.
+
+## Marmik reskin (dark theme + sidebar shell)
+
+- **Dark-only, token-driven.** `globals.css` replaces the shadcn light/dark
+  blocks with the Marmik palette in `:root` (carbon/graphite/steel/line, acid/
+  cyan/blaze, bone/alum). The raw palette is also exposed as Tailwind colors
+  (`bg-carbon`, `text-acid`, `border-line`) so screens compose without inline
+  styles. `<html class="dark">` keeps any `dark:` utilities resolving. Body
+  carries the 34px blueprint grid wash.
+- **Fonts** via `next/font/google`: Space Grotesk (display/buttons/headings),
+  Inter (body), JetBrains Mono (technical). Base `h1/h2/h3` are Space Grotesk;
+  `Label`/`CardTitle`/table headers are mono uppercase.
+- **Primitives restyled** (button/card/input/table/select/label): 1px `--line`
+  borders, no shadows, no `active:translate`, 160ms color-only transitions,
+  disabled 40%. This reskins every existing screen with no per-screen work.
+- **Shell** replaces the top bar: 244px sticky sidebar (logo lockup, entity
+  switcher reusing `selectEntity`, nav with a reticle-tick marker, user footer)
+  + sticky header (breadcrumb + ⌘K). The command palette (`command-palette.tsx`)
+  binds ⌘K and covers navigation + entity switching.
+- **Brand building blocks** in `brand.tsx` (PageHeader/Eyebrow/StatTile/Panel/
+  SpecCard/BurnRow) keep screens consistent. Dashboard is role-aware
+  (staff/manager/principal) off `membership.role`, composed from the existing
+  `reports-db` functions. Approvals is a selectable table with exception tags
+  (`approvals.ts`, tested) and bulk approve (`approveWeeks`).
+- **Derived columns** reuse `reports-db`: project burn (profitability), client
+  open WIP (`openWipByClient`), resource 4-week utilization, indirect 4-week
+  hours (`hoursByIndirectCode`) — the last two added with tests.
+- **Missing brand assets.** The real Marmik `logo.svg` and the eight icon SVGs
+  are NOT in the handoff bundle (referenced via an external design-system
+  module). Per the handoff's own rule ("no new glyphs; use a mono text label"),
+  nav uses text labels + a tick marker and the logo is a placeholder reticle.
+  Drop `public/brand/logo.svg` + `public/brand/icons/*.svg` in to upgrade.

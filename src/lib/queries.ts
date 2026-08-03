@@ -493,8 +493,11 @@ export function listSubmittedEntries(db: QueryDb, entityId: string) {
     .select({
       resourceId: timeEntry.resourceId,
       resourceName: resource.name,
+      resourceTitle: resource.title,
+      targetUtilization: resource.targetUtilization,
       workDate: timeEntry.workDate,
       hours: timeEntry.hours,
+      billable: timeEntry.billable,
     })
     .from(timeEntry)
     .innerJoin(resource, eq(resource.id, timeEntry.resourceId))

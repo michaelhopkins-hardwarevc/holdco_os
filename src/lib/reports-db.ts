@@ -1,5 +1,5 @@
 import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
-import { phase, project, resource, timeEntry } from "@/db/schema";
+import { indirectCode, phase, project, resource, timeEntry } from "@/db/schema";
 import { computeArAging, computeWip } from "@/lib/invoicing-db";
 import type { QueryDb } from "@/lib/queries";
 import { marginPct, pctFeeUsed, utilizationPct } from "@/lib/reports";
@@ -178,6 +178,55 @@ export async function projectProfitability(
       phases: phaseRows,
     };
   });
+}
+
+// --- Derived list columns ---------------------------------------------------
+
+/** Open WIP (approved billable, not invoiced) per client, in cents. */
+export async function openWipByClient(
+  db: QueryDb,
+  entityId: string,
+): Promise<Record<string, number>> {
+  const rows = await db
+    .select({
+      clientId: project.clientId,
+      wip: sql<number>`coalesce(sum(${timeEntry.billableAmount}), 0)::int`,
+    })
+    .from(timeEntry)
+    .innerJoin(project, eq(project.id, timeEntry.projectId))
+    .where(
+      and(
+        eq(timeEntry.entityId, entityId),
+        eq(timeEntry.billable, true),
+        eq(timeEntry.status, "approved"),
+        isNull(timeEntry.invoiceId),
+        isNull(timeEntry.deletedAt),
+      ),
+    )
+    .groupBy(project.clientId);
+  const out: Record<string, number> = {};
+  for (const r of rows) if (r.clientId) out[r.clientId] = r.wip;
+  return out;
+}
+
+/** Total hours per indirect code over a range. */
+export async function hoursByIndirectCode(
+  db: QueryDb,
+  entityId: string,
+  range: DateRange,
+): Promise<Record<string, number>> {
+  const rows = await db
+    .select({
+      codeId: timeEntry.indirectCodeId,
+      hours: sql<number>`coalesce(sum(${timeEntry.hours}), 0)::float`,
+    })
+    .from(timeEntry)
+    .innerJoin(indirectCode, eq(indirectCode.id, timeEntry.indirectCodeId))
+    .where(and(timeInRange(entityId, range), sql`${timeEntry.indirectCodeId} is not null`))
+    .groupBy(timeEntry.indirectCodeId);
+  const out: Record<string, number> = {};
+  for (const r of rows) if (r.codeId) out[r.codeId] = r.hours;
+  return out;
 }
 
 // --- Utilization ------------------------------------------------------------

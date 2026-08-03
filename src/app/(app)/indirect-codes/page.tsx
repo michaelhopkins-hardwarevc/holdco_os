@@ -30,27 +30,30 @@ import {
   setIndirectCodeActive,
 } from "@/lib/actions/indirect-codes";
 import { ADMIN_ROLES, requireActiveEntity } from "@/lib/auth";
+import { PageHeader } from "@/components/brand";
 import { ExportCsvButton } from "@/components/export-csv-button";
+import { hoursByIndirectCode } from "@/lib/reports-db";
+import { addWeeks, getWeek } from "@/lib/timesheet";
 import { listIndirectCodes } from "@/lib/queries";
 
 export default async function IndirectCodesPage() {
   const { ctx, active } = await requireActiveEntity();
   const canManage = ADMIN_ROLES.includes(active.role);
-  const codes = await runWithUser(ctx.authUser.id, (tx) =>
-    listIndirectCodes(tx, active.entityId),
-  );
+  const today = new Date().toISOString().slice(0, 10);
+  const range4 = { from: getWeek(addWeeks(today, -3)).start, to: today };
+  const { codes, hours } = await runWithUser(ctx.authUser.id, async (tx) => ({
+    codes: await listIndirectCodes(tx, active.entityId),
+    hours: await hoursByIndirectCode(tx, active.entityId, range4),
+  }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Indirect codes</h1>
-          <p className="text-muted-foreground">
-            {active.entityName} · non-billable time buckets (overhead, PTO, BD…).
-          </p>
-        </div>
-        <ExportCsvButton type="indirect-codes" entityId={active.entityId} />
-      </div>
+    <div className="flex flex-col gap-7">
+      <PageHeader
+        eyebrow="indirect codes"
+        title="Indirect codes"
+        blurb={`${active.entityName} · non-billable time buckets (overhead, PTO, BD…), with hours logged over the last four weeks.`}
+        actions={<ExportCsvButton type="indirect-codes" entityId={active.entityId} />}
+      />
 
       <Table>
         <TableHeader>
@@ -58,6 +61,7 @@ export default async function IndirectCodesPage() {
             <TableHead>Code</TableHead>
             <TableHead>Category</TableHead>
             <TableHead>Description</TableHead>
+            <TableHead className="text-right">Hours 4wk</TableHead>
             <TableHead>Active</TableHead>
             {canManage && <TableHead></TableHead>}
           </TableRow>
@@ -65,7 +69,7 @@ export default async function IndirectCodesPage() {
         <TableBody>
           {codes.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canManage ? 5 : 4} className="text-muted-foreground">
+              <TableCell colSpan={canManage ? 6 : 5} className="text-alum-2">
                 No indirect codes yet.
               </TableCell>
             </TableRow>
@@ -76,19 +80,26 @@ export default async function IndirectCodesPage() {
                   {canManage ? (
                     <Link
                       href={`/indirect-codes/${c.id}`}
-                      className="font-medium hover:underline"
+                      className="font-mono text-acid hover:underline"
                     >
                       {c.code}
                     </Link>
                   ) : (
-                    <span className="font-medium">{c.code}</span>
+                    <span className="font-mono text-acid">{c.code}</span>
                   )}
                 </TableCell>
-                <TableCell>{c.category}</TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="font-mono text-[11px] tracking-[0.08em] text-alum-2 uppercase">
+                  {c.category}
+                </TableCell>
+                <TableCell className="text-alum-2">
                   {c.description ?? "—"}
                 </TableCell>
-                <TableCell>{c.active ? "Yes" : "No"}</TableCell>
+                <TableCell className="text-right font-mono">
+                  {hours[c.id] ? hours[c.id].toFixed(2) : "—"}
+                </TableCell>
+                <TableCell className="font-mono text-[11px] text-alum-2 uppercase">
+                  {c.active ? "Yes" : "No"}
+                </TableCell>
                 {canManage && (
                   <TableCell>
                     <form action={setIndirectCodeActive}>

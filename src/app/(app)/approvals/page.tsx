@@ -1,28 +1,21 @@
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { ApprovalsTable, type ApprovalRow } from "@/components/approvals-table";
+import { PageHeader } from "@/components/brand";
 import { runWithUser } from "@/db/rls";
-import { approveWeek, rejectWeek } from "@/lib/actions/timesheet";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
+import { weekExceptions, weekUtilization } from "@/lib/approvals";
 import { listSubmittedEntries } from "@/lib/queries";
-import { getWeek } from "@/lib/timesheet";
+import { getWeek, weekdayLabel } from "@/lib/timesheet";
 
 export default async function ApprovalsPage() {
   const { ctx, active } = await requireActiveEntity();
 
   if (!MANAGER_ROLES.includes(active.role)) {
     return (
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Approvals</h1>
-        <p className="text-muted-foreground">
-          Only managers, admins, and owners can review submitted timesheets.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="approvals"
+        title="Approvals"
+        blurb="Only managers, admins, and owners can review submitted timesheets."
+      />
     );
   }
 
@@ -30,10 +23,18 @@ export default async function ApprovalsPage() {
     listSubmittedEntries(tx, active.entityId),
   );
 
-  const groups = new Map<
-    string,
-    { resourceId: string; resourceName: string; weekStart: string; hours: number; count: number }
-  >();
+  // Aggregate submitted entries into weeks per resource.
+  type Agg = {
+    resourceId: string;
+    resourceName: string;
+    resourceTitle: string | null;
+    targetPct: number | null;
+    weekStart: string;
+    hours: number;
+    billableHours: number;
+    weekdays: Set<string>;
+  };
+  const groups = new Map<string, Agg>();
   for (const e of submitted) {
     const weekStart = getWeek(e.workDate).start;
     const key = `${e.resourceId}|${weekStart}`;
@@ -42,67 +43,57 @@ export default async function ApprovalsPage() {
       {
         resourceId: e.resourceId,
         resourceName: e.resourceName,
+        resourceTitle: e.resourceTitle,
+        targetPct: e.targetUtilization === null ? null : Number(e.targetUtilization),
         weekStart,
         hours: 0,
-        count: 0,
+        billableHours: 0,
+        weekdays: new Set<string>(),
       };
-    g.hours += Number(e.hours);
-    g.count += 1;
+    const h = Number(e.hours);
+    g.hours += h;
+    if (e.billable) g.billableHours += h;
+    // weekday index 0-4 = Mon-Fri
+    const idx = getWeek(weekStart).days.indexOf(e.workDate);
+    if (h > 0 && idx >= 0 && idx <= 4) g.weekdays.add(weekdayLabel(idx));
     groups.set(key, g);
   }
-  const weeks = [...groups.values()].sort((a, b) =>
-    a.weekStart < b.weekStart ? 1 : -1,
-  );
+
+  const rows: ApprovalRow[] = [...groups.values()]
+    .sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))
+    .map((g) => ({
+      resourceId: g.resourceId,
+      resourceName: g.resourceName,
+      resourceTitle: g.resourceTitle,
+      weekStart: g.weekStart,
+      hours: g.hours,
+      billableHours: g.billableHours,
+      utilPct: weekUtilization(g.billableHours, g.hours),
+      targetPct: g.targetPct,
+      exceptions: weekExceptions({
+        totalHours: g.hours,
+        billableHours: g.billableHours,
+        targetPct: g.targetPct,
+        weekdaysWithHours: g.weekdays.size,
+      }),
+    }));
+
+  const title =
+    rows.length === 0
+      ? "Nothing waiting on you"
+      : `${rows.length} week${rows.length === 1 ? "" : "s"} waiting on you`;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Approvals</h1>
-        <p className="text-muted-foreground">
-          {active.entityName} · submitted timesheets awaiting review.
-        </p>
-      </div>
-
-      {weeks.length === 0 ? (
-        <p className="text-muted-foreground">Nothing to approve right now.</p>
+    <div className="flex flex-col gap-7">
+      <PageHeader
+        eyebrow="approvals"
+        title={title}
+        blurb={`${active.entityName} · select weeks to approve in bulk, or send one back with a note. Exception tags flag weeks worth a closer look.`}
+      />
+      {rows.length === 0 ? (
+        <p className="text-[13px] text-alum-2">All submitted timesheets are cleared.</p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {weeks.map((w) => (
-            <Card key={`${w.resourceId}|${w.weekStart}`}>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {w.resourceName} · week of {w.weekStart}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <p className="text-sm text-muted-foreground">
-                  {w.count} entries · {w.hours} hours
-                </p>
-                <div className="flex flex-wrap items-end gap-3">
-                  <form action={approveWeek}>
-                    <input type="hidden" name="entityId" value={active.entityId} />
-                    <input type="hidden" name="resourceId" value={w.resourceId} />
-                    <input type="hidden" name="weekStart" value={w.weekStart} />
-                    <Button type="submit">Approve</Button>
-                  </form>
-                  <form action={rejectWeek} className="flex items-end gap-2">
-                    <input type="hidden" name="entityId" value={active.entityId} />
-                    <input type="hidden" name="resourceId" value={w.resourceId} />
-                    <input type="hidden" name="weekStart" value={w.weekStart} />
-                    <Input
-                      name="note"
-                      placeholder="Reason for rejection"
-                      className="w-56"
-                    />
-                    <Button type="submit" variant="outline">
-                      Reject
-                    </Button>
-                  </form>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <ApprovalsTable entityId={active.entityId} rows={rows} />
       )}
     </div>
   );

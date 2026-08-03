@@ -234,18 +234,26 @@ export default async function TimesheetPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Timesheet — {res.name}</h1>
-          <p className="text-muted-foreground">
-            Week of {week.start} · status: {status}
+          <div className="font-mono text-[11px] tracking-[0.2em] text-acid uppercase">
+            {"// timesheet"}
+          </div>
+          <h1 className="mt-2 font-display text-[31px] leading-none font-bold tracking-[-0.02em] text-bone">
+            Week of {week.start}
+          </h1>
+          <p className="mt-2 font-mono text-[11.5px] tracking-[0.08em] text-alum-2 uppercase">
+            {res.name}
+            {res.title ? ` · ${res.title}` : ""} · {status}
           </p>
           {isManager && teamResources.length > 0 && (
-            <form className="mt-2 flex items-center gap-2">
+            <form className="mt-3 flex items-center gap-2">
               <input type="hidden" name="week" value={week.start} />
-              <span className="text-xs text-muted-foreground">Viewing:</span>
+              <span className="font-mono text-[10px] tracking-[0.1em] text-alum-2 uppercase">
+                Viewing
+              </span>
               <select
                 name="resource"
                 defaultValue={res.id}
-                className="h-8 rounded-md border bg-transparent px-2 text-sm"
+                className="h-8 rounded-md border border-line bg-carbon px-2 text-sm text-bone"
               >
                 {teamResources.map((tr) => (
                   <option key={tr.id} value={tr.id}>
@@ -288,8 +296,10 @@ export default async function TimesheetPage({
 
       {syncMessage && (
         <p
-          className={`rounded-lg border px-3 py-2 text-sm ${
-            syncIsError ? "text-destructive" : "bg-muted"
+          className={`rounded-lg border px-3 py-2 text-[13px] ${
+            syncIsError
+              ? "border-blaze-line bg-blaze/10 text-blaze"
+              : "border-line bg-steel text-alum"
           }`}
         >
           {syncMessage}
@@ -297,19 +307,20 @@ export default async function TimesheetPage({
       )}
 
       {!editable && (
-        <p className="rounded-lg border bg-muted px-3 py-2 text-sm">
-          This week is <strong>{status}</strong> and locked. A manager must
-          reject it before it can be edited again.
+        <p className="rounded-lg border border-line bg-steel px-3 py-2 text-[13px] text-alum">
+          This week is <strong className="text-bone">{status}</strong> and
+          locked. A manager must reject it before it can be edited again.
         </p>
       )}
 
       {editable && (
-        <section className="rounded-lg border">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted px-4 py-3">
+        <section className="overflow-hidden rounded-xl border border-line bg-graphite">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-steel px-4 py-3">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="text-sm font-medium">
+              <div className="flex items-center gap-2 font-mono text-[10.5px] tracking-[0.1em] text-bone uppercase">
+                <span className="h-[7px] w-[7px] rounded-full bg-cyan" />
                 Signals · {signals.length} proposed
-                <span className="ml-2 font-normal text-muted-foreground">
+                <span className="text-alum-2 normal-case">
                   from your connected tools
                 </span>
               </div>

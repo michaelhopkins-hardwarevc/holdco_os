@@ -23,39 +23,41 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/brand";
 import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { createResource, setResourceActive } from "@/lib/actions/resources";
 import { ADMIN_ROLES, requireActiveEntity } from "@/lib/auth";
 import { formatCents } from "@/lib/money";
+import { utilizationByResource } from "@/lib/reports-db";
+import { addWeeks, getWeek } from "@/lib/timesheet";
 import { listEntityMembers, listResources } from "@/lib/queries";
 
 export default async function ResourcesPage() {
   const { ctx, active } = await requireActiveEntity();
   const canManage = ADMIN_ROLES.includes(active.role);
-  const { resources, members } = await runWithUser(
+  const today = new Date().toISOString().slice(0, 10);
+  const range4 = { from: getWeek(addWeeks(today, -3)).start, to: today };
+  const { resources, members, util } = await runWithUser(
     ctx.authUser.id,
     async (tx) => ({
       resources: await listResources(tx, active.entityId),
       members: await listEntityMembers(tx, active.entityId),
+      util: await utilizationByResource(tx, active.entityId, range4),
     }),
   );
   const memberName = new Map(members.map((m) => [m.userId, m.name]));
-  const colCount = canManage ? 8 : 7;
+  const utilById = new Map(util.map((u) => [u.resourceId, u]));
+  const colCount = canManage ? 9 : 8;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Resources</h1>
-          <p className="text-muted-foreground">
-            {active.entityName} · billable people. Link a resource to a user so
-            that person can enter time. Deactivated resources keep their history
-            but are hidden from new time entry.
-          </p>
-        </div>
-        <ExportCsvButton type="resources" entityId={active.entityId} />
-      </div>
+    <div className="flex flex-col gap-7">
+      <PageHeader
+        eyebrow="resources"
+        title="Resources"
+        blurb={`${active.entityName} · billable people, their rates, and utilization over the last four weeks. Link a resource to a user so that person can enter time.`}
+        actions={<ExportCsvButton type="resources" entityId={active.entityId} />}
+      />
 
       <Table>
         <TableHeader>
@@ -63,9 +65,10 @@ export default async function ResourcesPage() {
             <TableHead>Name</TableHead>
             <TableHead>Title</TableHead>
             <TableHead>Linked user</TableHead>
-            <TableHead>Bill rate</TableHead>
-            <TableHead>Cost rate</TableHead>
-            <TableHead>Target %</TableHead>
+            <TableHead className="text-right">Bill</TableHead>
+            <TableHead className="text-right">Cost</TableHead>
+            <TableHead className="text-right">Target</TableHead>
+            <TableHead className="text-right">Util 4wk</TableHead>
             <TableHead>Status</TableHead>
             {canManage && <TableHead></TableHead>}
           </TableRow>
@@ -95,13 +98,27 @@ export default async function ResourcesPage() {
                 <TableCell className="text-muted-foreground">
                   {r.title ?? "—"}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-alum-2">
                   {r.userId ? (memberName.get(r.userId) ?? "—") : "—"}
                 </TableCell>
-                <TableCell>{formatCents(r.billRate)}/hr</TableCell>
-                <TableCell>{formatCents(r.costRate)}/hr</TableCell>
-                <TableCell>{r.targetUtilization ?? "—"}</TableCell>
-                <TableCell>{r.status}</TableCell>
+                <TableCell className="text-right font-mono">{formatCents(r.billRate)}</TableCell>
+                <TableCell className="text-right font-mono text-alum">{formatCents(r.costRate)}</TableCell>
+                <TableCell className="text-right font-mono text-alum-2">
+                  {r.targetUtilization ? `${r.targetUtilization}%` : "—"}
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {(() => {
+                    const u = utilById.get(r.id);
+                    if (!u || u.utilizationPct === null) return <span className="text-alum-2">—</span>;
+                    const t = u.targetPct;
+                    const color =
+                      t === null ? "text-alum" : u.utilizationPct >= t ? "text-cyan" : u.utilizationPct < t - 10 ? "text-blaze" : "text-alum";
+                    return <span className={color}>{u.utilizationPct}%</span>;
+                  })()}
+                </TableCell>
+                <TableCell className="font-mono text-[11px] tracking-[0.08em] text-alum-2 uppercase">
+                  {r.status}
+                </TableCell>
                 {canManage && (
                   <TableCell>
                     <form action={setResourceActive}>

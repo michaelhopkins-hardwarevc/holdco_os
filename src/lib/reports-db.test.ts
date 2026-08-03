@@ -20,6 +20,8 @@ import {
 } from "@/lib/invoicing-db";
 import {
   firmDashboard,
+  hoursByIndirectCode,
+  openWipByClient,
   projectProfitability,
   utilizationByResource,
 } from "@/lib/reports-db";
@@ -297,5 +299,31 @@ describe("reporting reconciliation", () => {
     expect(wipSumAfter).toBe(0);
     expect(dash.wipTime).toBe(0);
     expect(dash.arOutstanding).toBe(336000); // 325000 time + 11000 expense
+  });
+
+  it("derived list columns: open WIP per client and indirect hours", async () => {
+    const s = await setup();
+    const wip = await openWipByClient(db, s.entityId);
+    // One client; its open WIP equals the labor WIP (325000).
+    expect(Object.values(wip).reduce((a, b) => a + b, 0)).toBe(325000);
+
+    // Add an indirect entry and check the hours aggregate.
+    const [ind] = await db
+      .insert(indirectCode)
+      .values({ organizationId: s.actor.orgId, entityId: s.entityId, code: "TRN", category: "training" })
+      .returning();
+    await db.insert(timeEntry).values({
+      organizationId: s.actor.orgId,
+      entityId: s.entityId,
+      resourceId: s.r1,
+      workDate: "2026-07-20",
+      chargeType: "indirect",
+      indirectCodeId: ind.id,
+      hours: "3.00",
+      billable: false,
+      status: "approved",
+    });
+    const hrs = await hoursByIndirectCode(db, s.entityId, RANGE);
+    expect(hrs[ind.id]).toBe(3);
   });
 });

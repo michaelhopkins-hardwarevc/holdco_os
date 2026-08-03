@@ -16,28 +16,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/brand";
 import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { createClient } from "@/lib/actions/clients";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
+import { formatCents } from "@/lib/money";
+import { openWipByClient } from "@/lib/reports-db";
 import { listClients } from "@/lib/queries";
 
 export default async function ClientsPage() {
   const { ctx, active } = await requireActiveEntity();
   const canManage = MANAGER_ROLES.includes(active.role);
-  const clients = await runWithUser(ctx.authUser.id, (tx) =>
-    listClients(tx, active.entityId),
-  );
+  const { clients, wip } = await runWithUser(ctx.authUser.id, async (tx) => ({
+    clients: await listClients(tx, active.entityId),
+    wip: await openWipByClient(tx, active.entityId),
+  }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Clients</h1>
-          <p className="text-muted-foreground">{active.entityName}</p>
-        </div>
-        <ExportCsvButton type="clients" entityId={active.entityId} />
-      </div>
+    <div className="flex flex-col gap-7">
+      <PageHeader
+        eyebrow="clients"
+        title="Clients"
+        blurb={`${active.entityName} · who you bill, and the unbilled work sitting against each.`}
+        actions={<ExportCsvButton type="clients" entityId={active.entityId} />}
+      />
 
       <Table>
         <TableHeader>
@@ -45,12 +48,13 @@ export default async function ClientsPage() {
             <TableHead>Name</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Billing terms</TableHead>
+            <TableHead className="text-right">Open WIP</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {clients.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={3} className="text-muted-foreground">
+              <TableCell colSpan={4} className="text-alum-2">
                 No clients yet.
               </TableCell>
             </TableRow>
@@ -65,9 +69,14 @@ export default async function ClientsPage() {
                     {c.name}
                   </Link>
                 </TableCell>
-                <TableCell>{c.status}</TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="font-mono text-[11px] tracking-[0.08em] text-alum-2 uppercase">
+                  {c.status}
+                </TableCell>
+                <TableCell className="text-alum-2">
                   {c.billingTerms ?? "—"}
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {wip[c.id] ? formatCents(wip[c.id]) : "—"}
                 </TableCell>
               </TableRow>
             ))

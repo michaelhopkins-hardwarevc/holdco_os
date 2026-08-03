@@ -121,3 +121,24 @@ export async function approveWeek(formData: FormData): Promise<void> {
 export async function rejectWeek(formData: FormData): Promise<void> {
   await reviewWeek(formData, "draft", "reject");
 }
+
+// Bulk approve: `weeks` is a JSON array of {resourceId, weekStart}. Each week is
+// transitioned in its own call; a single authorization covers the entity.
+export async function approveWeeks(formData: FormData): Promise<void> {
+  const entityId = String(formData.get("entityId") ?? "");
+  let weeks: { resourceId: string; weekStart: string }[] = [];
+  try {
+    weeks = JSON.parse(String(formData.get("weeks") ?? "[]"));
+  } catch {
+    weeks = [];
+  }
+  if (weeks.length === 0) return;
+  const ctx = await assertEntityRole(entityId, MANAGER_ROLES);
+  const actor = { orgId: ctx.appUser.organizationId, actorId: ctx.appUser.id };
+  for (const w of weeks) {
+    if (!w.resourceId || !w.weekStart) continue;
+    await transitionTimesheetWeek(db, actor, entityId, w.resourceId, w.weekStart, "approved", "approve", null);
+  }
+  revalidatePath("/approvals");
+  revalidatePath("/timesheet");
+}

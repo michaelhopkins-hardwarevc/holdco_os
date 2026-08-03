@@ -171,19 +171,19 @@ export function TimesheetGrid({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-xl border border-line bg-graphite">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
-            <tr className="border-b text-muted-foreground">
-              <th className="px-2 py-2 text-left font-medium">Task</th>
+            <tr className="border-b border-line bg-steel font-mono text-[10px] tracking-[0.1em] text-alum-2 uppercase">
+              <th className="px-3 py-2.5 text-left font-normal">Task</th>
               {dayLabels.map((label) => (
-                <th key={label} className="px-2 py-2 text-center font-medium">
+                <th key={label} className="px-2 py-2.5 text-center font-normal">
                   {label}
                 </th>
               ))}
-              <th className="px-2 py-2 text-right font-medium">Total</th>
+              <th className="px-3 py-2.5 text-right font-normal">Total</th>
               {canOverride && (
-                <th className="px-2 py-2 text-left font-medium">Billing</th>
+                <th className="px-3 py-2.5 text-left font-normal">Billing</th>
               )}
             </tr>
           </thead>
@@ -198,8 +198,21 @@ export function TimesheetGrid({
               rows.map((r) => {
                 const rowTotal = days.reduce((s, d) => s + (r.hours[d] ?? 0), 0);
                 return (
-                  <tr key={r.key} className="border-b">
-                    <td className="px-2 py-2 whitespace-nowrap">{r.label}</td>
+                  <tr key={r.key} className="border-b border-dashed border-line">
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="flex items-center gap-2.5">
+                        <span
+                          className={`inline-block h-[22px] w-[2px] shrink-0 ${
+                            r.chargeType === "indirect"
+                              ? "bg-alum-2"
+                              : r.billable
+                                ? "bg-acid"
+                                : "bg-cyan"
+                          }`}
+                        />
+                        <span className="text-[13.5px] text-bone">{r.label}</span>
+                      </span>
+                    </td>
                     {days.map((d) => (
                       <td key={d} className="px-1 py-1">
                         <Input
@@ -213,7 +226,9 @@ export function TimesheetGrid({
                         />
                       </td>
                     ))}
-                    <td className="px-2 py-2 text-right font-medium">{rowTotal}</td>
+                    <td className="px-3 py-2 text-right font-mono text-[13px] text-bone">
+                      {rowTotal}
+                    </td>
                     {canOverride && (
                       <td className="px-2 py-1">
                         <div className="flex items-center gap-2 whitespace-nowrap">
@@ -273,25 +288,34 @@ export function TimesheetGrid({
             )}
           </tbody>
           <tfoot>
-            <tr className="font-medium">
-              <td className="px-2 py-2">Daily total</td>
+            <tr className="border-t border-line bg-steel">
+              <td className="px-3 py-2.5 font-mono text-[10px] tracking-[0.1em] text-alum-2 uppercase">
+                Daily total
+              </td>
               {dayTotals.map((t, i) => (
-                <td key={days[i]} className="px-2 py-2 text-center">
+                <td
+                  key={days[i]}
+                  className={`px-2 py-2.5 text-center font-mono text-[13.5px] ${
+                    t >= 8 ? "text-bone" : t > 0 ? "text-alum" : "text-alum-2"
+                  }`}
+                >
                   {t}
                 </td>
               ))}
-              <td className="px-2 py-2 text-right">{grandTotal}</td>
+              <td className="px-3 py-2.5 text-right font-mono text-[15px] font-medium text-bone">
+                {grandTotal}
+              </td>
               {canOverride && <td />}
             </tr>
           </tfoot>
         </table>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-[13px] text-blaze">{error}</p>}
 
       {editable && (
         <>
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-graphite p-3">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Project</span>
               <Select
@@ -333,7 +357,7 @@ export function TimesheetGrid({
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-graphite p-3">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Indirect code</span>
               <Select
