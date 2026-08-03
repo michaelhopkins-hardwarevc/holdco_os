@@ -151,3 +151,33 @@ works).
 - **WIP/AR computed on read, not stored.** No denormalized balances to drift;
   both are pure aggregates over the underlying records, matching the
   reconciliation test.
+
+## §7.6 Reporting & dashboards
+
+- **Reconciliation is the anchor (again).** `reports-db.test.ts` proves the firm
+  dashboard's billable/cost/hours equal raw sums straight from `time_entry`,
+  that per-phase profitability sums to the project total, that per-resource
+  utilization hours sum to the firm totals, and that the sum of per-project WIP
+  equals the labor leg of `computeWip` before and after invoicing. AR ties to
+  `computeArAging`.
+- **Actuals = all logged time (any status).** Profitability and utilization
+  count every non-deleted time entry (draft through invoiced) so the numbers
+  reflect real logged work. WIP is the narrower "approved, billable, not yet
+  invoiced" slice, matching §7.5.
+- **Profitability is labor-based.** Billable value, cost, and margin come from
+  time only; expenses are pass-through (billed at cost + markup) and are not
+  margin drivers. The firm-dashboard WIP figure still includes billable
+  expenses (`wip`), while `wipTime` is the labor-only number that reconciles to
+  the project reports.
+- **Firm billable == sum of project billable, structurally.** These are equal
+  because indirect time can never be billable (enforced by a DB check
+  constraint), so all billable value is project time. The test asserts this
+  invariant.
+- **"Filter by entity" = the existing entity switcher.** Reports are RLS-scoped
+  to the active entity; the top-bar switcher changes it. Date range is a plain
+  GET form (`?from=&to=`); WIP and AR are point-in-time balances, not
+  range-filtered. Default window is year-to-date.
+- **CSV export via authorized GET routes** under `/api/reports/*`. Any entity
+  member may read reports; the route checks membership, runs the same
+  `reports-db` functions through RLS, and streams `text/csv`. CSV shaping lives
+  in `report-csv.ts`; escaping is RFC-4180 (`toCsv`).

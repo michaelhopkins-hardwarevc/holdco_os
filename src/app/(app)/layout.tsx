@@ -37,6 +37,9 @@ export default async function AppLayout({
                 <Link href="/invoices" className="hover:text-foreground">
                   Invoices
                 </Link>
+                <Link href="/reports" className="hover:text-foreground">
+                  Reports
+                </Link>
                 <Link href="/clients" className="hover:text-foreground">
                   Clients
                 </Link>
