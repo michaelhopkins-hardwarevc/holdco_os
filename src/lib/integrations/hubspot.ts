@@ -50,35 +50,88 @@ export function hubspotSource(): CaptureSource {
   return {
     sourceSystem: "hubspot",
     async fetch(accessToken, startISO, endISO) {
-      const from = Date.parse(startISO);
-      const to = Date.parse(endISO);
+      const fromMs = Date.parse(startISO);
+      const toMs = Date.parse(endISO);
+      const headers = {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      };
       const out: RawActivity[] = [];
+
       for (const [kind, collection] of Object.entries(HUBSPOT_ACTIVITY_KINDS)) {
-        const params = new URLSearchParams({
-          properties: "hs_timestamp,hubspot_owner_id",
-          associations: "deals",
-          limit: "100",
-          archived: "false",
-        });
-        const res = await fetch(
-          `https://api.hubapi.com/crm/v3/objects/${collection}?${params}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
+        // 1. Recent records via search (time-filtered, newest first). The list
+        //    endpoint isn't time-ordered, so it would return old records and
+        //    miss recent activity — search is the correct way to get "recent".
+        const sres = await fetch(
+          `https://api.hubapi.com/crm/v3/objects/${collection}/search`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              filterGroups: [
+                {
+                  filters: [
+                    {
+                      propertyName: "hs_timestamp",
+                      operator: "GTE",
+                      value: String(fromMs),
+                    },
+                  ],
+                },
+              ],
+              sorts: [
+                { propertyName: "hs_timestamp", direction: "DESCENDING" },
+              ],
+              properties: ["hs_timestamp", "hubspot_owner_id"],
+              limit: 100,
+            }),
+          },
         );
-        if (!res.ok) {
-          const text = await res.text();
+        if (!sres.ok) {
           throw new Error(
-            `HubSpot v3 ${collection} failed (${res.status}): ${text}`,
+            `HubSpot v3 ${collection} search failed (${sres.status}): ${await sres.text()}`,
           );
         }
-        const json = (await res.json()) as { results?: HubspotV3Record[] };
-        const mapped = hubspotV3ToActivities(
-          json.results ?? [],
-          kind as HubspotKind,
-        ).filter((a) => {
-          const ts = Date.parse(a.occurredAt);
-          return Number.isFinite(ts) && ts >= from && ts < to;
+        const sjson = (await sres.json()) as { results?: HubspotV3Record[] };
+        let records = (sjson.results ?? []).filter((r) => {
+          const ts = Date.parse(r.properties?.hs_timestamp ?? "");
+          return Number.isFinite(ts) && ts < toMs;
         });
-        out.push(...mapped);
+        if (records.length === 0) continue;
+
+        // 2. Deal associations (search doesn't return them) via the v4 batch API.
+        const ares = await fetch(
+          `https://api.hubapi.com/crm/v4/associations/${collection}/deals/batch/read`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              inputs: records.map((r) => ({ id: String(r.id) })),
+            }),
+          },
+        );
+        if (ares.ok) {
+          const ajson = (await ares.json()) as {
+            results?: {
+              from?: { id?: string | number };
+              to?: { toObjectId?: string | number }[];
+            }[];
+          };
+          const dealByRecord = new Map<string, string>();
+          for (const a of ajson.results ?? []) {
+            const fid = a.from?.id != null ? String(a.from.id) : "";
+            const did = a.to?.[0]?.toObjectId;
+            if (fid && did != null) dealByRecord.set(fid, String(did));
+          }
+          records = records.map((r) => {
+            const did = dealByRecord.get(String(r.id));
+            return did
+              ? { ...r, associations: { deals: { results: [{ id: did }] } } }
+              : r;
+          });
+        }
+
+        out.push(...hubspotV3ToActivities(records, kind as HubspotKind));
       }
       return out;
     },
