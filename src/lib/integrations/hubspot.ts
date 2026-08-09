@@ -6,10 +6,13 @@ import type { CaptureSource, RawActivity } from "./capture";
 // project via crosswalk_project. Read-only, via a Service Key (Bearer token).
 
 // The activity object types we capture, mapped to their v3 collection name.
+// Emails are intentionally excluded: reading them needs a separate
+// crm.objects.emails.read scope the Service Key picker doesn't expose, and we
+// already capture sent mail directly from Outlook. Re-add "email: 'emails'"
+// here once that scope is granted, if HubSpot-logged emails are wanted too.
 export const HUBSPOT_ACTIVITY_KINDS = {
   note: "notes",
   call: "calls",
-  email: "emails",
   meeting: "meetings",
 } as const;
 export type HubspotKind = keyof typeof HUBSPOT_ACTIVITY_KINDS;
@@ -57,81 +60,96 @@ export function hubspotSource(): CaptureSource {
         "Content-Type": "application/json",
       };
       const out: RawActivity[] = [];
+      const errors: string[] = [];
 
       for (const [kind, collection] of Object.entries(HUBSPOT_ACTIVITY_KINDS)) {
-        // 1. Recent records via search (time-filtered, newest first). The list
-        //    endpoint isn't time-ordered, so it would return old records and
-        //    miss recent activity — search is the correct way to get "recent".
-        const sres = await fetch(
-          `https://api.hubapi.com/crm/v3/objects/${collection}/search`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              filterGroups: [
-                {
-                  filters: [
-                    {
-                      propertyName: "hs_timestamp",
-                      operator: "GTE",
-                      value: String(fromMs),
-                    },
-                  ],
-                },
-              ],
-              sorts: [
-                { propertyName: "hs_timestamp", direction: "DESCENDING" },
-              ],
-              properties: ["hs_timestamp", "hubspot_owner_id"],
-              limit: 100,
-            }),
-          },
-        );
-        if (!sres.ok) {
-          throw new Error(
-            `HubSpot v3 ${collection} search failed (${sres.status}): ${await sres.text()}`,
+        // Each activity type is independent: if one fails (e.g. a missing
+        // per-object scope), record it and keep going so the others still land.
+        try {
+          // 1. Recent records via search (time-filtered, newest first). The list
+          //    endpoint isn't time-ordered, so it would return old records and
+          //    miss recent activity — search is the correct way to get "recent".
+          const sres = await fetch(
+            `https://api.hubapi.com/crm/v3/objects/${collection}/search`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                filterGroups: [
+                  {
+                    filters: [
+                      {
+                        propertyName: "hs_timestamp",
+                        operator: "GTE",
+                        value: String(fromMs),
+                      },
+                    ],
+                  },
+                ],
+                sorts: [
+                  { propertyName: "hs_timestamp", direction: "DESCENDING" },
+                ],
+                properties: ["hs_timestamp", "hubspot_owner_id"],
+                limit: 100,
+              }),
+            },
+          );
+          if (!sres.ok) {
+            throw new Error(
+              `search failed (${sres.status}): ${await sres.text()}`,
+            );
+          }
+          const sjson = (await sres.json()) as { results?: HubspotV3Record[] };
+          let records = (sjson.results ?? []).filter((r) => {
+            const ts = Date.parse(r.properties?.hs_timestamp ?? "");
+            return Number.isFinite(ts) && ts < toMs;
+          });
+          if (records.length === 0) continue;
+
+          // 2. Deal associations (search doesn't return them) via the v4 batch API.
+          const ares = await fetch(
+            `https://api.hubapi.com/crm/v4/associations/${collection}/deals/batch/read`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                inputs: records.map((r) => ({ id: String(r.id) })),
+              }),
+            },
+          );
+          if (ares.ok) {
+            const ajson = (await ares.json()) as {
+              results?: {
+                from?: { id?: string | number };
+                to?: { toObjectId?: string | number }[];
+              }[];
+            };
+            const dealByRecord = new Map<string, string>();
+            for (const a of ajson.results ?? []) {
+              const fid = a.from?.id != null ? String(a.from.id) : "";
+              const did = a.to?.[0]?.toObjectId;
+              if (fid && did != null) dealByRecord.set(fid, String(did));
+            }
+            records = records.map((r) => {
+              const did = dealByRecord.get(String(r.id));
+              return did
+                ? { ...r, associations: { deals: { results: [{ id: did }] } } }
+                : r;
+            });
+          }
+
+          out.push(...hubspotV3ToActivities(records, kind as HubspotKind));
+        } catch (e) {
+          errors.push(
+            `${collection}: ${e instanceof Error ? e.message : String(e)}`,
           );
         }
-        const sjson = (await sres.json()) as { results?: HubspotV3Record[] };
-        let records = (sjson.results ?? []).filter((r) => {
-          const ts = Date.parse(r.properties?.hs_timestamp ?? "");
-          return Number.isFinite(ts) && ts < toMs;
-        });
-        if (records.length === 0) continue;
+      }
 
-        // 2. Deal associations (search doesn't return them) via the v4 batch API.
-        const ares = await fetch(
-          `https://api.hubapi.com/crm/v4/associations/${collection}/deals/batch/read`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              inputs: records.map((r) => ({ id: String(r.id) })),
-            }),
-          },
-        );
-        if (ares.ok) {
-          const ajson = (await ares.json()) as {
-            results?: {
-              from?: { id?: string | number };
-              to?: { toObjectId?: string | number }[];
-            }[];
-          };
-          const dealByRecord = new Map<string, string>();
-          for (const a of ajson.results ?? []) {
-            const fid = a.from?.id != null ? String(a.from.id) : "";
-            const did = a.to?.[0]?.toObjectId;
-            if (fid && did != null) dealByRecord.set(fid, String(did));
-          }
-          records = records.map((r) => {
-            const did = dealByRecord.get(String(r.id));
-            return did
-              ? { ...r, associations: { deals: { results: [{ id: did }] } } }
-              : r;
-          });
-        }
-
-        out.push(...hubspotV3ToActivities(records, kind as HubspotKind));
+      // Partial success is fine (return what landed); only a total failure with
+      // no events surfaces as a source error.
+      if (out.length === 0 && errors.length > 0) {
+        throw new Error(`HubSpot v3 ${errors.join("; ")}`);
       }
       return out;
     },
