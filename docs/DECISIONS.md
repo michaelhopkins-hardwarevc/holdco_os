@@ -2,6 +2,34 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-08-09 — Integration write-back posture (future phase, not built yet)
+
+Recorded now so the boundary is deliberate when we get there. Today every
+integration is read-only except Xero, which writes DRAFT invoices only. Writing
+back to Monday, HubSpot, and others is feasible and the expensive groundwork is
+already done; it is intentionally deferred past the MVP (M0-M4).
+
+- **Why it's cheap to add later.** Two existing decisions carry it: (1) every
+  integration lives behind an adapter interface (`AccountingProvider`,
+  `CaptureSource`), and the app never imports a vendor SDK outside its adapter,
+  so a write is a new method on an adapter, not a rewiring; (2) we reference
+  external records by their own id (`crosswalk_*`, `activity_event.source_event_id`),
+  so "write back to the right record" is already a solved data-model problem.
+- **Governance is the real gate, not plumbing.** Principle 2 (one home per fact):
+  HubSpot masters customers, Monday masters projects, Xero masters money, this app
+  masters time and effort. The app may author only what it is the master of.
+  Everything outward-facing is a **proposal / draft a human approves, never a
+  silent overwrite** (the shape Xero export already uses). This also prevents
+  sync loops: auto-writing a value we then re-capture as a signal.
+- **What each write feature will need** (its own small milestone, normal DoD):
+  broaden that integration's token scopes (read-only today by design); add the
+  write method to the adapter; call it through a role-checked server action
+  (manager/admin/owner); write an `audit_log` before/after entry; make it
+  idempotent via the external id.
+- **Open decision for build time.** Field by field, which facts the app is
+  allowed to author vs. only propose. That is a business call and must be settled
+  before any outward-facing write is coded.
+
 ## 2026-08-09 — WIS Day-One M1: Capture (additive activity_event)
 
 Adds the raw capture landing table and pipeline on top of M0's crosswalks.
