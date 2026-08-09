@@ -112,6 +112,11 @@ export const partyMatchType = pgEnum("party_match_type", [
   "name_variant",
 ]);
 
+// Hardness of a captured activity_event (WIS Day-One §2 principle 3). A hard
+// signal is a concrete artifact (a sent email, a saved file, a status change);
+// a soft signal is filler that never auto-posts.
+export const eventHardness = pgEnum("event_hardness", ["hard", "soft"]);
+
 // ---------------------------------------------------------------------------
 // Standard audit columns carried by every domain table (CLAUDE.md §5.2).
 // Returned from a function so each table gets fresh column builders.
