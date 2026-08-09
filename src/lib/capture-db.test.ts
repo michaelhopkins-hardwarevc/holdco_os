@@ -7,7 +7,7 @@ import { createTestDb, type TestDb } from "@/db/test-helpers";
 import { captureActivities } from "@/lib/capture-db";
 import type { RawActivity } from "@/lib/integrations/capture";
 import { graphMailToActivities } from "@/lib/integrations/graph-mail";
-import { hubspotToActivities } from "@/lib/integrations/hubspot";
+import { hubspotV3ToActivities } from "@/lib/integrations/hubspot";
 import { mondayToActivities } from "@/lib/integrations/monday";
 
 // M1 acceptance: a day of one person's real-shaped events across sources is
@@ -38,15 +38,19 @@ function aDayOfEvents(): RawActivity[] {
         kind: "status_change",
       },
     ]),
-    ...hubspotToActivities([
-      {
-        id: "eng-1",
-        type: "NOTE",
-        timestamp: "2026-07-27T11:00:00Z",
-        ownerId: "hs-ryan",
-        dealId: "hs-deal-6055",
-      },
-    ]),
+    ...hubspotV3ToActivities(
+      [
+        {
+          id: "eng-1",
+          properties: {
+            hs_timestamp: "2026-07-27T11:00:00Z",
+            hubspot_owner_id: "hs-ryan",
+          },
+          associations: { deals: { results: [{ id: "hs-deal-6055" }] } },
+        },
+      ],
+      "note",
+    ),
     ...graphMailToActivities(
       [
         {

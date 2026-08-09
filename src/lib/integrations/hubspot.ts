@@ -1,82 +1,86 @@
 import type { CaptureSource, RawActivity } from "./capture";
 
-// HubSpot capture. Engagements (notes, calls, emails, meetings) are hard
-// signals of customer work; an associated deal id resolves to a project via
-// crosswalk_project, otherwise the company reaches a client via crosswalk_party.
+// HubSpot capture via the CRM v3 activity objects (notes, calls, emails,
+// meetings) — the current API, replacing the deprecated engagements v1.
+// Each is a hard signal of customer work; an associated deal resolves to a
+// project via crosswalk_project. Read-only, via a Service Key (Bearer token).
 
-type HubspotEngagement = {
-  id: string;
-  type?: string; // NOTE | CALL | EMAIL | MEETING | TASK
-  timestamp?: string;
-  ownerId?: string | number; // HubSpot user id
-  dealId?: string | number | null;
-  companyDomain?: string | null;
+// The activity object types we capture, mapped to their v3 collection name.
+export const HUBSPOT_ACTIVITY_KINDS = {
+  note: "notes",
+  call: "calls",
+  email: "emails",
+  meeting: "meetings",
+} as const;
+export type HubspotKind = keyof typeof HUBSPOT_ACTIVITY_KINDS;
+
+type HubspotV3Record = {
+  id: string | number;
+  properties?: { hs_timestamp?: string; hubspot_owner_id?: string | number };
+  associations?: { deals?: { results?: { id?: string | number }[] } };
 };
 
-// Engagement types we treat as hard signals of real customer work.
-const HARD_TYPES = new Set(["NOTE", "CALL", "EMAIL", "MEETING"]);
-
-/** Map HubSpot engagements to RawActivity. */
-export function hubspotToActivities(
-  engagements: HubspotEngagement[],
+/** Map a batch of v3 activity records of one kind to RawActivity. */
+export function hubspotV3ToActivities(
+  records: HubspotV3Record[],
+  kind: HubspotKind,
 ): RawActivity[] {
-  return engagements.map((e) => {
-    const type = (e.type ?? "NOTE").toUpperCase();
+  return records.map((r) => {
+    const dealId = r.associations?.deals?.results?.[0]?.id;
     return {
       sourceSystem: "hubspot",
-      sourceUserId: e.ownerId != null ? String(e.ownerId) : "",
-      sourceEventId: e.id,
-      eventType: `hubspot_${type.toLowerCase()}`,
-      occurredAt: e.timestamp ?? "",
-      hardness: HARD_TYPES.has(type) ? "hard" : "soft",
-      hubspotDealId: e.dealId != null ? String(e.dealId) : null,
-      senderDomain: e.companyDomain ?? null,
-      raw: e,
+      sourceUserId:
+        r.properties?.hubspot_owner_id != null
+          ? String(r.properties.hubspot_owner_id)
+          : "",
+      sourceEventId: String(r.id),
+      eventType: `hubspot_${kind}`,
+      occurredAt: r.properties?.hs_timestamp ?? "",
+      hardness: "hard",
+      hubspotDealId: dealId != null ? String(dealId) : null,
+      raw: r,
     };
   });
 }
 
-/** A CaptureSource over the HubSpot API (live token wired per sequencing). */
+/** A CaptureSource over HubSpot v3 activities (Service Key as Bearer token).
+ *  Pulls each activity kind with its deal association and filters to the window
+ *  by hs_timestamp. Validate response shape against live data before enabling. */
 export function hubspotSource(): CaptureSource {
   return {
     sourceSystem: "hubspot",
     async fetch(accessToken, startISO, endISO) {
-      const res = await fetch(
-        "https://api.hubapi.com/engagements/v1/engagements/paged?limit=250",
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HubSpot API failed (${res.status}): ${text}`);
-      }
-      const json = (await res.json()) as {
-        results?: {
-          engagement?: {
-            id: string;
-            type?: string;
-            timestamp?: number;
-            ownerId?: number;
-          };
-          associations?: { dealIds?: number[] };
-        }[];
-      };
       const from = Date.parse(startISO);
       const to = Date.parse(endISO);
-      const engagements: HubspotEngagement[] = (json.results ?? [])
-        .filter((r) => {
-          const ts = r.engagement?.timestamp;
-          return ts != null && ts >= from && ts < to;
-        })
-        .map((r) => ({
-          id: String(r.engagement?.id),
-          type: r.engagement?.type,
-          timestamp: r.engagement?.timestamp
-            ? new Date(r.engagement.timestamp).toISOString()
-            : undefined,
-          ownerId: r.engagement?.ownerId,
-          dealId: r.associations?.dealIds?.[0] ?? null,
-        }));
-      return hubspotToActivities(engagements);
+      const out: RawActivity[] = [];
+      for (const [kind, collection] of Object.entries(HUBSPOT_ACTIVITY_KINDS)) {
+        const params = new URLSearchParams({
+          properties: "hs_timestamp,hubspot_owner_id",
+          associations: "deals",
+          limit: "100",
+          archived: "false",
+        });
+        const res = await fetch(
+          `https://api.hubapi.com/crm/v3/objects/${collection}?${params}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(
+            `HubSpot v3 ${collection} failed (${res.status}): ${text}`,
+          );
+        }
+        const json = (await res.json()) as { results?: HubspotV3Record[] };
+        const mapped = hubspotV3ToActivities(
+          json.results ?? [],
+          kind as HubspotKind,
+        ).filter((a) => {
+          const ts = Date.parse(a.occurredAt);
+          return Number.isFinite(ts) && ts >= from && ts < to;
+        });
+        out.push(...mapped);
+      }
+      return out;
     },
   };
 }
