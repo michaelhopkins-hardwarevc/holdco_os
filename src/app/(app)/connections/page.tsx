@@ -16,9 +16,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { runWithUser } from "@/db/rls";
+import { syncNowAction } from "@/lib/actions/capture";
 import { disconnectOutlook } from "@/lib/actions/connections";
 import { deleteSignalRuleAction } from "@/lib/actions/signals";
-import { requireActiveEntity } from "@/lib/auth";
+import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
 import { getOutlookConnection } from "@/lib/integrations/outlook-store";
 import { getResourceForUser, listSignalRules } from "@/lib/queries";
 
@@ -37,11 +38,13 @@ export default async function ConnectionsPage({
     return res ? await listSignalRules(tx, active.entityId, res.id) : [];
   });
 
+  const canSync = MANAGER_ROLES.includes(active.role);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Connections</h1>
-        <p className="max-w-prose text-muted-foreground">
+        <p className="text-muted-foreground max-w-prose">
           Connect your calendar so the timesheet can propose hours from your
           meetings. Access is read-only, per person, and only you see your own
           signals. Nothing posts to a timesheet without you accepting it.
@@ -49,13 +52,13 @@ export default async function ConnectionsPage({
       </div>
 
       {sp.connected && (
-        <p className="rounded-lg border bg-muted px-3 py-2 text-sm">
+        <p className="bg-muted rounded-lg border px-3 py-2 text-sm">
           Outlook connected. Go to the Timesheet and choose &quot;Refresh from
           Outlook&quot; to pull this week&apos;s events.
         </p>
       )}
       {sp.error && (
-        <p className="rounded-lg border px-3 py-2 text-sm text-destructive">
+        <p className="text-destructive rounded-lg border px-3 py-2 text-sm">
           Couldn&apos;t complete the Outlook connection ({sp.error}). Please try
           again.
         </p>
@@ -88,6 +91,30 @@ export default async function ConnectionsPage({
         </CardContent>
       </Card>
 
+      {canSync && (
+        <Card className="max-w-lg">
+          <CardHeader>
+            <CardTitle>Activity capture</CardTitle>
+            <CardDescription>
+              Pull work signal from Monday, HubSpot, and connected Outlook
+              mailboxes into the activity feed. Runs automatically each day; use
+              this to pull on demand.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground text-sm">
+              Reads only. Nothing posts to a timesheet automatically.
+            </span>
+            <form action={syncNowAction}>
+              <input type="hidden" name="entityId" value={active.entityId} />
+              <Button type="submit" size="sm">
+                Sync now
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Learned rules</CardTitle>
@@ -98,7 +125,7 @@ export default async function ConnectionsPage({
         </CardHeader>
         <CardContent>
           {rules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               No rules yet. They build up as you accept signals.
             </p>
           ) : (
@@ -123,7 +150,11 @@ export default async function ConnectionsPage({
                     <TableCell>{r.hitCount}</TableCell>
                     <TableCell>
                       <form action={deleteSignalRuleAction}>
-                        <input type="hidden" name="entityId" value={active.entityId} />
+                        <input
+                          type="hidden"
+                          name="entityId"
+                          value={active.entityId}
+                        />
                         <input type="hidden" name="ruleId" value={r.id} />
                         <Button type="submit" variant="ghost" size="sm">
                           Delete
