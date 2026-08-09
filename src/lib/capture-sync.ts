@@ -21,6 +21,7 @@ export type Fetcher = { label: string; run: () => Promise<RawActivity[]> };
 
 export type SyncResult = CaptureSummary & {
   sourcesRun: number;
+  sourceLabels: string[];
   errors: string[];
 };
 
@@ -43,7 +44,12 @@ export async function runCapture(
   }
 
   const summary = await captureActivities(db, actor, entityId, raws);
-  return { ...summary, sourcesRun: fetchers.length, errors };
+  return {
+    ...summary,
+    sourcesRun: fetchers.length,
+    sourceLabels: fetchers.map((f) => f.label),
+    errors,
+  };
 }
 
 // --- Fetcher assembly (pure — no db/env/network at import time) -------------

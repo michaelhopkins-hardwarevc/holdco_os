@@ -15,8 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SyncNow } from "./sync-now";
 import { runWithUser } from "@/db/rls";
-import { syncNowAction } from "@/lib/actions/capture";
 import { disconnectOutlook } from "@/lib/actions/connections";
 import { deleteSignalRuleAction } from "@/lib/actions/signals";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
@@ -101,16 +101,11 @@ export default async function ConnectionsPage({
               this to pull on demand.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex items-center justify-between gap-4">
+          <CardContent className="flex items-start justify-between gap-4">
             <span className="text-muted-foreground text-sm">
               Reads only. Nothing posts to a timesheet automatically.
             </span>
-            <form action={syncNowAction}>
-              <input type="hidden" name="entityId" value={active.entityId} />
-              <Button type="submit" size="sm">
-                Sync now
-              </Button>
-            </form>
+            <SyncNow entityId={active.entityId} />
           </CardContent>
         </Card>
       )}
