@@ -96,6 +96,22 @@ export const signalConfidence = pgEnum("signal_confidence", [
   "low",
 ]);
 
+// Crosswalks (WIS Day-One §4). The external systems whose IDs we map onto the
+// masters in this app. Xero is a write target, not a signal source, so it is
+// not a crosswalk_person source system.
+export const sourceSystem = pgEnum("source_system", [
+  "microsoft",
+  "google",
+  "monday",
+  "hubspot",
+]);
+
+// How a crosswalk_party row matches an external counterparty to a client.
+export const partyMatchType = pgEnum("party_match_type", [
+  "email_domain",
+  "name_variant",
+]);
+
 // ---------------------------------------------------------------------------
 // Standard audit columns carried by every domain table (CLAUDE.md §5.2).
 // Returned from a function so each table gets fresh column builders.

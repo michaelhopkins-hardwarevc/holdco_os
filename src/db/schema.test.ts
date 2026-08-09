@@ -33,8 +33,9 @@ describe("migration", () => {
     );
     const names = rows.map((r) => r.table_name);
 
-    // 5 core + 12 Phase 1 + 20 later-phase scaffolding + 2 signals = 39.
-    expect(names).toHaveLength(40);
+    // 5 core + 12 Phase 1 + 20 later-phase scaffolding + 2 signals
+    // + 3 crosswalks = 43.
+    expect(names).toHaveLength(43);
     for (const t of [
       "organization",
       "entity",
@@ -53,6 +54,9 @@ describe("migration", () => {
       "qbo_connection",
       "vehicle",
       "qsbs_lot",
+      "crosswalk_person",
+      "crosswalk_party",
+      "crosswalk_project",
     ]) {
       expect(names).toContain(t);
     }
@@ -68,7 +72,7 @@ describe("migration", () => {
        join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r'`,
     );
-    expect(rows.length).toBe(40);
+    expect(rows.length).toBe(43);
     const withoutRls = rows.filter((r) => !r.relrowsecurity).map((r) => r.relname);
     expect(withoutRls).toEqual([]);
   });
@@ -116,6 +120,9 @@ describe("seed", () => {
       phases: 7,
       indirectCodes: 8,
       timeEntries: 20,
+      crosswalkPersons: 4,
+      crosswalkParties: 6,
+      crosswalkProjects: 3,
     });
 
     // The counts in the summary match what actually landed in the database.
@@ -127,6 +134,9 @@ describe("seed", () => {
     expect(await count("indirect_code")).toBe(8);
     expect(await count("time_entry")).toBe(20);
     expect(await count("membership")).toBe(3);
+    expect(await count("crosswalk_person")).toBe(4);
+    expect(await count("crosswalk_party")).toBe(6);
+    expect(await count("crosswalk_project")).toBe(3);
   });
 
   it("never bills indirect time and always sets exactly one charge target", async () => {
