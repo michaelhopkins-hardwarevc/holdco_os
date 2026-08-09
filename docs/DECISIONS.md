@@ -2,6 +2,39 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-08-09 — WIS Day-One M1: Capture (additive activity_event)
+
+Adds the raw capture landing table and pipeline on top of M0's crosswalks.
+
+- **Additive, not a rewrite.** The shipping calendar→signal path is untouched.
+  `activity_event` is a new raw store for the other hard signals (Graph sent
+  mail, Monday, HubSpot). Unifying everything through it is M2's job (Draft), not
+  M1's. This keeps the working Signals feature stable and the diff small.
+- **Resolution at capture.** `capture-db.ts` runs each event through the M0
+  resolver and stores `resolved_project_id` / `resolved_client_id` /
+  `resolution_confidence` / `matched_by` alongside the raw payload. Confidence is
+  stored only when something resolved; a fully unresolved event is
+  `matched_by: "none"` with null confidence (it's the queue in M2).
+- **Idempotent by `(entity, source_system, source_event_id)`** via
+  `onConflictDoUpdate`, so re-syncs refresh resolution in place rather than
+  duplicating (WIS plan "idempotent re-syncs").
+- **Hardness rules (§2 principle 3).** Sent email = hard (a delivery timestamp);
+  Monday status change = hard, plain update/comment = soft; HubSpot
+  note/call/email/meeting = hard, task = soft.
+- **Adapters** (`integrations/{graph-mail,monday,hubspot}.ts`): each is a pure
+  mapper (fixture-tested) plus a thin fetch wrapper in the existing
+  CalendarProvider style. `RawActivity` is a superset of the resolver's
+  `WorkEvent`, so a captured event resolves without a translation layer.
+- **Actor vs counterparty.** The actor (person) is resolved per source: Graph
+  uses the connection owner's Entra id; Monday uses the log's `creator_id`;
+  HubSpot uses the engagement `ownerId`. The counterparty (for client match) is
+  the email recipient domain (skipping internal domains), the Monday board, or
+  the HubSpot deal.
+- **Live tokens deferred** (operator's sequencing choice): pipeline + all three
+  adapters built and tested against fixtures now; Monday/HubSpot connectors get
+  authorized later, then wired in. Graph mail reuses the existing Outlook app
+  registration (needs the `Mail.Read` scope added).
+
 ## 2026-08-08 — WIS Day-One M0: crosswalk layer (extend, don't fork)
 
 The WIS Day-One Activity Layer plan reads work signal from Microsoft 365,
