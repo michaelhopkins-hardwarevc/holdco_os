@@ -87,6 +87,10 @@ export const outlookProvider: CalendarProvider = {
       response_mode: "query",
       scope: SCOPES,
       state,
+      // Force the consent screen so newly-added scopes (e.g. Mail.Read) are
+      // actually granted on reconnect instead of being silently skipped when a
+      // session already exists.
+      prompt: "consent",
     });
     return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}`;
   },
