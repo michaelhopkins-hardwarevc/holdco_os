@@ -30,13 +30,16 @@ export function mondayToActivities(items: MondayActivity[]): RawActivity[] {
   });
 }
 
-/** A CaptureSource over the Monday API (live token wired per sequencing). */
-export function mondaySource(): CaptureSource {
+/** A CaptureSource over the Monday API, scoped to the crosswalked project
+ *  boards (so we pull only boards that resolve to a project, not the whole
+ *  account). Live token wired per sequencing. */
+export function mondaySource(boardIds: string[]): CaptureSource {
   return {
     sourceSystem: "monday",
     async fetch(accessToken, startISO, endISO) {
-      const query = `query ($from: ISO8601DateTime!, $to: ISO8601DateTime!) {
-        boards { id activity_logs(from: $from, to: $to) { id event created_at user_id data } }
+      if (boardIds.length === 0) return [];
+      const query = `query ($ids: [ID!], $from: ISO8601DateTime!, $to: ISO8601DateTime!) {
+        boards(ids: $ids) { id activity_logs(from: $from, to: $to) { id event created_at user_id data } }
       }`;
       const res = await fetch("https://api.monday.com/v2", {
         method: "POST",
@@ -46,7 +49,7 @@ export function mondaySource(): CaptureSource {
         },
         body: JSON.stringify({
           query,
-          variables: { from: startISO, to: endISO },
+          variables: { ids: boardIds, from: startISO, to: endISO },
         }),
       });
       if (!res.ok) {

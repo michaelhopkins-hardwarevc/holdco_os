@@ -15,6 +15,9 @@ const SCOPES = [
   "profile",
   "User.Read",
   "Calendars.Read",
+  // Sent-mail capture (WIS §3.1). Adding this changes the consent set, so a
+  // connected user must reconnect once to grant it.
+  "Mail.Read",
 ].join(" ");
 
 function config() {

@@ -3,7 +3,10 @@ import { loadCrosswalks } from "@/lib/crosswalk-db";
 import { resolveEvent } from "@/lib/crosswalk-map";
 import type { RawActivity } from "@/lib/integrations/capture";
 import type { QueryDb } from "@/lib/queries";
-import type { Actor } from "@/lib/timesheet-db";
+
+// Capture can run unattended (the daily cron has no signed-in user), so the
+// actor id may be null. Otherwise it's the user who triggered "Sync now".
+export type CaptureActor = { orgId: string; actorId: string | null };
 
 // The Capture stage (WIS Day-One §3.1/§3.2). Land raw activity events and
 // attach a resolution (person / client / project) via the M0 crosswalks. This
@@ -27,7 +30,7 @@ export type CaptureSummary = {
  */
 export async function captureActivities(
   db: QueryDb,
-  actor: Actor,
+  actor: CaptureActor,
   entityId: string,
   raws: RawActivity[],
 ): Promise<CaptureSummary> {

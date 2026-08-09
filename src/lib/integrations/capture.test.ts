@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { domainOf } from "@/lib/integrations/capture";
 import { graphMailToActivities } from "@/lib/integrations/graph-mail";
-import { hubspotToActivities } from "@/lib/integrations/hubspot";
+import { hubspotV3ToActivities } from "@/lib/integrations/hubspot";
 import { mondayToActivities } from "@/lib/integrations/monday";
 
 describe("domainOf", () => {
@@ -96,38 +96,46 @@ describe("mondayToActivities", () => {
   });
 });
 
-describe("hubspotToActivities", () => {
-  it("maps a note as hard with its deal id", () => {
-    const [a] = hubspotToActivities([
-      {
-        id: "e1",
-        type: "NOTE",
-        timestamp: "2026-07-29T12:00:00Z",
-        ownerId: 7,
-        dealId: 6055,
-      },
-    ]);
+describe("hubspotV3ToActivities", () => {
+  it("maps a v3 note as hard with its deal id", () => {
+    const [a] = hubspotV3ToActivities(
+      [
+        {
+          id: "e1",
+          properties: {
+            hs_timestamp: "2026-07-29T12:00:00Z",
+            hubspot_owner_id: 7,
+          },
+          associations: { deals: { results: [{ id: 6055 }] } },
+        },
+      ],
+      "note",
+    );
     expect(a).toMatchObject({
       sourceSystem: "hubspot",
       sourceUserId: "7",
+      sourceEventId: "e1",
       eventType: "hubspot_note",
       hardness: "hard",
       hubspotDealId: "6055",
     });
   });
 
-  it("treats a task as soft filler", () => {
-    const [a] = hubspotToActivities([
-      {
-        id: "e2",
-        type: "TASK",
-        timestamp: "2026-07-29T13:00:00Z",
-        ownerId: 7,
-        dealId: null,
-      },
-    ]);
-    expect(a.eventType).toBe("hubspot_task");
-    expect(a.hardness).toBe("soft");
+  it("maps a meeting with no deal association to a null deal", () => {
+    const [a] = hubspotV3ToActivities(
+      [
+        {
+          id: "e2",
+          properties: {
+            hs_timestamp: "2026-07-29T13:00:00Z",
+            hubspot_owner_id: 7,
+          },
+        },
+      ],
+      "meeting",
+    );
+    expect(a.eventType).toBe("hubspot_meeting");
+    expect(a.hardness).toBe("hard");
     expect(a.hubspotDealId).toBeNull();
   });
 });
