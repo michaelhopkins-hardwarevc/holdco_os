@@ -3,6 +3,9 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   client,
   contact,
+  crosswalkParty,
+  crosswalkPerson,
+  crosswalkProject,
   entity,
   indirectCode,
   membership,
@@ -366,6 +369,120 @@ export async function seed(db: SeedDb) {
 
   await db.insert(timeEntry).values(timeRows);
 
+  // --- crosswalks (WIS Day-One §4) ----------------------------------------
+  // Placeholder external ids until the real Monday / HubSpot / Xero / Entra
+  // ids are wired in. Names and shapes are real; only the ids are stand-ins.
+  const crosswalkPeople = await db
+    .insert(crosswalkPerson)
+    .values([
+      // resources[0..3] in insert order: Principal, Ryan Hahn, Justin Gasal, Casey.
+      {
+        ...scope,
+        sourceSystem: "microsoft",
+        sourceUserId: "entra-jordan-principal",
+        resourceId: resources[0].id,
+      },
+      {
+        ...scope,
+        sourceSystem: "microsoft",
+        sourceUserId: "entra-ryan-hahn",
+        resourceId: resources[1].id,
+      },
+      {
+        ...scope,
+        sourceSystem: "microsoft",
+        sourceUserId: "entra-justin-gasal",
+        resourceId: resources[2].id,
+      },
+      {
+        ...scope,
+        sourceSystem: "microsoft",
+        sourceUserId: "entra-casey-designer",
+        resourceId: resources[3].id,
+      },
+    ])
+    .returning({ id: crosswalkPerson.id });
+
+  const crosswalkParties = await db
+    .insert(crosswalkParty)
+    .values([
+      // clients[0..2]: MicroLumix, LeMans, J.W. Speaker.
+      {
+        ...scope,
+        matchType: "email_domain",
+        matchValue: "biosciencetech.com",
+        hubspotCompanyId: "hs-company-microlumix",
+        clientId: clients[0].id,
+      },
+      {
+        ...scope,
+        matchType: "name_variant",
+        matchValue: "microlumix",
+        clientId: clients[0].id,
+      },
+      {
+        ...scope,
+        matchType: "email_domain",
+        matchValue: "lemans.com",
+        hubspotCompanyId: "hs-company-lemans",
+        clientId: clients[1].id,
+      },
+      {
+        ...scope,
+        matchType: "name_variant",
+        matchValue: "lemans corporation",
+        clientId: clients[1].id,
+      },
+      {
+        ...scope,
+        matchType: "email_domain",
+        matchValue: "jwspeaker.com",
+        hubspotCompanyId: "hs-company-jwspeaker",
+        clientId: clients[2].id,
+      },
+      {
+        ...scope,
+        matchType: "name_variant",
+        matchValue: "j.w. speaker",
+        clientId: clients[2].id,
+      },
+    ])
+    .returning({ id: crosswalkParty.id });
+
+  const crosswalkProjects = await db
+    .insert(crosswalkProject)
+    .values([
+      // projects[0..2]: GermPass (P-6041), Plow (P-6055), Lighting (P-6060).
+      {
+        ...scope,
+        projectId: projects[0].id,
+        clientId: clients[0].id,
+        mondayBoardId: "monday-board-6041",
+        sharepointFolder: "/clients/microlumix/germpass",
+        hubspotDealId: "hs-deal-6041",
+        xeroTrackingOption: "P-6041 GermPass",
+      },
+      {
+        ...scope,
+        projectId: projects[1].id,
+        clientId: clients[1].id,
+        mondayBoardId: "monday-board-6055",
+        sharepointFolder: "/clients/lemans/plow-platform",
+        hubspotDealId: "hs-deal-6055",
+        xeroTrackingOption: "P-6055 Plow Platform",
+      },
+      {
+        ...scope,
+        projectId: projects[2].id,
+        clientId: clients[2].id,
+        mondayBoardId: "monday-board-6060",
+        sharepointFolder: "/clients/jwspeaker/lighting-strategy",
+        hubspotDealId: "hs-deal-6060",
+        xeroTrackingOption: "P-6060 Lighting Strategy",
+      },
+    ])
+    .returning({ id: crosswalkProject.id });
+
   return {
     organizations: 1,
     entities: 1,
@@ -378,5 +495,8 @@ export async function seed(db: SeedDb) {
     phases: phases.length,
     indirectCodes: indirectRows.length,
     timeEntries: timeRows.length,
+    crosswalkPersons: crosswalkPeople.length,
+    crosswalkParties: crosswalkParties.length,
+    crosswalkProjects: crosswalkProjects.length,
   };
 }

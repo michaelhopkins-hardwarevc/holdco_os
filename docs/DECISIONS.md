@@ -2,6 +2,40 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-08-08 — WIS Day-One M0: crosswalk layer (extend, don't fork)
+
+The WIS Day-One Activity Layer plan reads work signal from Microsoft 365,
+Monday, and HubSpot, drafts time, confirms it, and pushes billable time to
+**Xero**. Its plan assumes a greenfield repo. We chose to **build it inside this
+HoldCo OS repo** instead, because this repo already ships the overlapping half:
+`resource` (the plan's `person`), `signal_rule` (its `correction_rule`),
+`resource.billRate`/`rate_override` (its `rate`), `invoice_line`, a Signals
+confirm-loop, and an Outlook/Graph connector. Rebuilding those was wasteful.
+
+- **Vocabulary mapping.** The plan's `person`→`resource`, `party`→`client`,
+  `project`→`project`. Crosswalk columns keep the repo's names (`resource_id`,
+  `client_id`, `project_id`) with comments back to the plan's terms.
+- **M0 scope = crosswalks only.** Because the app is already scaffolded and
+  deployed, the plan's "M0 scaffold" collapses to the three crosswalk tables
+  (`crosswalk_person`/`_party`/`_project`), a pure strongest-first resolver
+  (`crosswalk-map.ts`), a thin entity-scoped loader (`crosswalk-db.ts`), and
+  seed crosswalks on the sample entity.
+- **Resolver order (confidence everywhere).** Monday board id or HubSpot deal id
+  → project, High. Exact SharePoint folder → project, High; a sub-folder prefix
+  → Med. No project → reach a client via email domain (Med) or name variant
+  (Low). Person is resolved independently of the charge. No match → unresolved
+  (`matchedBy: "none"`), destined for the queue in M1.
+- **Xero, not QuickBooks.** Operator chose Xero as the invoice write target, so
+  `crosswalk_project` carries `xero_tracking_option`. The existing
+  `invoice.qbo_id` column is left untouched; the Xero export field/adapter lands
+  in M4 alongside it rather than replacing it.
+- **Placeholder external ids.** Seeds use real names but stand-in Monday/
+  HubSpot/SharePoint/Entra ids (`monday-board-6041`, `hs-deal-6055`, …). Real
+  ids get swapped in once those systems are connected (auth-gated).
+- **RLS.** Crosswalks are reference data (no money): membership-scoped read
+  policies only (migration `0011`, hand-written like `0003`/`0006`); writes go
+  through service-role server actions.
+
 ## 2026-08-01 — Fix: dashboard 500 after login (production)
 
 Two bugs caused a server-side exception on the first authenticated page load in
