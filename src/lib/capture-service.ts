@@ -1,15 +1,31 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { crosswalkPerson, entity, sourceConnection } from "@/db/schema";
+import {
+  crosswalkPerson,
+  entity,
+  resource,
+  sourceConnection,
+} from "@/db/schema";
 import {
   assembleFetchers,
+  type Fetcher,
   pickWindow,
   runCapture,
   type SyncResult,
 } from "@/lib/capture-sync";
-import { draftForEntity, type EntityDraftSummary } from "@/lib/draft-db";
-import { freshOutlookAccessToken } from "@/lib/integrations/outlook-store";
+import {
+  draftForEntity,
+  draftSignalsForResource,
+  type DraftSummary,
+  type EntityDraftSummary,
+} from "@/lib/draft-db";
+import { graphCalendarSource } from "@/lib/integrations/graph-calendar";
+import { graphMailSource } from "@/lib/integrations/graph-mail";
+import {
+  freshOutlookAccessToken,
+  getOutlookConnection,
+} from "@/lib/integrations/outlook-store";
 
 // One sync both captures raw events and drafts them into confirmable signals.
 export type SyncEntityResult = SyncResult & { drafted: EntityDraftSummary };
@@ -90,4 +106,62 @@ export async function syncEntity(opts?: {
   });
 
   return { ...capture, drafted };
+}
+
+/**
+ * Per-user unified refresh (the "Refresh from Outlook" button): capture this
+ * user's own mail + calendar into activity_event, then draft their signals over
+ * the range. Replaces the old direct calendar->signal path so meetings flow
+ * through the same pipeline (and the same subject-matching) as everything else.
+ */
+export async function syncUserOutlook(
+  entityId: string,
+  appUserId: string,
+  range: { start: string; end: string },
+): Promise<{ drafted: DraftSummary }> {
+  const [res] = await db
+    .select()
+    .from(resource)
+    .where(
+      and(
+        eq(resource.entityId, entityId),
+        eq(resource.userId, appUserId),
+        isNull(resource.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!res) throw new Error("You don't have a resource in this entity.");
+
+  const conn = await getOutlookConnection(entityId, appUserId);
+  if (!conn?.externalAccountId) throw new Error("Outlook is not connected.");
+  const token = await freshOutlookAccessToken(conn);
+  const entra = conn.externalAccountId;
+  const actor = { orgId: res.organizationId, actorId: appUserId };
+
+  const fetchers: Fetcher[] = [
+    {
+      label: `outlook-mail:${entra}`,
+      run: () =>
+        graphMailSource(entra, INTERNAL_DOMAINS).fetch(
+          token,
+          range.start,
+          range.end,
+        ),
+    },
+    {
+      label: `outlook-calendar:${entra}`,
+      run: () =>
+        graphCalendarSource(entra).fetch(token, range.start, range.end),
+    },
+  ];
+
+  await runCapture(db, actor, entityId, fetchers);
+  const drafted = await draftSignalsForResource(
+    db,
+    actor,
+    entityId,
+    res.id,
+    range,
+  );
+  return { drafted };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { domainOf } from "@/lib/integrations/capture";
+import { calendarToActivities } from "@/lib/integrations/graph-calendar";
 import { graphMailToActivities } from "@/lib/integrations/graph-mail";
 import { hubspotV3ToActivities } from "@/lib/integrations/hubspot";
 import { mondayTimeToISO, mondayToActivities } from "@/lib/integrations/monday";
@@ -120,6 +121,43 @@ describe("mondayToActivities", () => {
     ]);
     expect(a.eventType).toBe("monday_update");
     expect(a.hardness).toBe("soft");
+  });
+});
+
+describe("calendarToActivities", () => {
+  const ev = (over: Record<string, unknown>) => ({
+    id: "e",
+    subject: "GermPass design review",
+    startISO: "2026-07-27T09:00:00Z",
+    endISO: "2026-07-27T10:00:00Z",
+    attendees: 3,
+    isAllDay: false,
+    showAs: "busy",
+    ...over,
+  });
+
+  it("maps a meeting as a hard event carrying its subject", () => {
+    const [a] = calendarToActivities([ev({})], "entra-ryan");
+    expect(a).toMatchObject({
+      sourceSystem: "microsoft",
+      sourceUserId: "entra-ryan",
+      eventType: "calendar_meeting",
+      hardness: "hard",
+      subject: "GermPass design review",
+      occurredAt: "2026-07-27T09:00:00Z",
+    });
+  });
+
+  it("drops all-day and free/out-of-office events", () => {
+    const out = calendarToActivities(
+      [
+        ev({ id: "1", isAllDay: true }),
+        ev({ id: "2", showAs: "oof" }),
+        ev({ id: "3" }),
+      ],
+      "entra-ryan",
+    );
+    expect(out.map((a) => a.sourceEventId)).toEqual(["3"]);
   });
 });
 

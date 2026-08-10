@@ -48,7 +48,7 @@ describe("assembleFetchers", () => {
     ).toEqual(["hubspot"]);
   });
 
-  it("adds one Outlook fetcher per connected mailbox", () => {
+  it("adds mail + calendar fetchers per connected mailbox", () => {
     const f = assembleFetchers({
       ...base,
       outlook: [
@@ -57,8 +57,10 @@ describe("assembleFetchers", () => {
       ],
     });
     expect(f.map((x) => x.label)).toEqual([
-      "outlook:entra-a",
-      "outlook:entra-b",
+      "outlook-mail:entra-a",
+      "outlook-calendar:entra-a",
+      "outlook-mail:entra-b",
+      "outlook-calendar:entra-b",
     ]);
   });
 
@@ -73,7 +75,8 @@ describe("assembleFetchers", () => {
     expect(f.map((x) => x.label)).toEqual([
       "monday",
       "hubspot",
-      "outlook:entra-a",
+      "outlook-mail:entra-a",
+      "outlook-calendar:entra-a",
     ]);
   });
 });

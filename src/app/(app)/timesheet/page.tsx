@@ -56,8 +56,7 @@ export default async function TimesheetPage({
   searchParams: Promise<{
     week?: string;
     resource?: string;
-    syncEvents?: string;
-    syncCreated?: string;
+    syncDrafted?: string;
     syncError?: string;
   }>;
 }) {
@@ -71,17 +70,12 @@ export default async function TimesheetPage({
   if (sp.syncError) {
     syncIsError = true;
     syncMessage = `Couldn't pull from Outlook: ${sp.syncError}`;
-  } else if (sp.syncEvents !== undefined) {
-    const events = Number(sp.syncEvents);
-    const created = Number(sp.syncCreated ?? 0);
-    if (events === 0) {
-      syncMessage =
-        "No calendar events found for this week. Pick a week that has meetings, or check that events exist in your Outlook.";
-    } else if (created === 0) {
-      syncMessage = `Found ${events} calendar event${events === 1 ? "" : "s"}, but they were already imported or couldn't be matched to a project or indirect code.`;
-    } else {
-      syncMessage = `Imported ${created} new signal${created === 1 ? "" : "s"} from ${events} calendar event${events === 1 ? "" : "s"}.`;
-    }
+  } else if (sp.syncDrafted !== undefined) {
+    const drafted = Number(sp.syncDrafted);
+    syncMessage =
+      drafted === 0
+        ? "Pulled from Outlook. No new time blocks to draft for this week."
+        : `Pulled from Outlook and drafted ${drafted} time block${drafted === 1 ? "" : "s"} below.`;
   }
 
   const data = await runWithUser(ctx.authUser.id, async (tx) => {
@@ -100,11 +94,23 @@ export default async function TimesheetPage({
     return {
       res,
       teamResources,
-      entries: await getWeekEntries(tx, active.entityId, res.id, week.start, week.end),
+      entries: await getWeekEntries(
+        tx,
+        active.entityId,
+        res.id,
+        week.start,
+        week.end,
+      ),
       projects: await listProjects(tx, active.entityId),
       phases: await listEntityPhases(tx, active.entityId),
       codes: await listIndirectCodes(tx, active.entityId, { activeOnly: true }),
-      signals: await listOpenSignals(tx, active.entityId, res.id, week.start, week.end),
+      signals: await listOpenSignals(
+        tx,
+        active.entityId,
+        res.id,
+        week.start,
+        week.end,
+      ),
     };
   });
 
@@ -121,7 +127,8 @@ export default async function TimesheetPage({
     );
   }
 
-  const { res, entries, projects, phases, codes, signals, teamResources } = data;
+  const { res, entries, projects, phases, codes, signals, teamResources } =
+    data;
   const isOwn = res.userId === ctx.appUser.id;
   const canOverride = isManager;
 
@@ -176,7 +183,10 @@ export default async function TimesheetPage({
   // indirect codes), for the editable per-signal selector.
   const chargeTargets: { value: string; label: string }[] = [];
   for (const p of projects) {
-    chargeTargets.push({ value: `project:${p.id}:`, label: `${p.code} · ${p.name}` });
+    chargeTargets.push({
+      value: `project:${p.id}:`,
+      label: `${p.code} · ${p.name}`,
+    });
     for (const ph of phases.filter((x) => x.projectId === p.id)) {
       chargeTargets.push({
         value: `project:${p.id}:${ph.id}`,
@@ -185,7 +195,10 @@ export default async function TimesheetPage({
     }
   }
   for (const c of codes) {
-    chargeTargets.push({ value: `indirect:${c.id}`, label: `${c.code} · ${c.category}` });
+    chargeTargets.push({
+      value: `indirect:${c.id}`,
+      label: `${c.code} · ${c.category}`,
+    });
   }
   const defaultCharge = (s: (typeof signals)[number]) =>
     s.chargeType === "project"
@@ -226,34 +239,32 @@ export default async function TimesheetPage({
   const rows = [...rowMap.values()];
   const editable = isWeekEditable(statuses);
   const status = deriveWeekStatus(statuses);
-  const dayLabels = week.days.map(
-    (d, i) => `${weekdayLabel(i)} ${d.slice(5)}`,
-  );
+  const dayLabels = week.days.map((d, i) => `${weekdayLabel(i)} ${d.slice(5)}`);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-mono text-[11px] tracking-[0.2em] text-acid uppercase">
+          <div className="text-acid font-mono text-[11px] tracking-[0.2em] uppercase">
             {"// timesheet"}
           </div>
-          <h1 className="mt-2 font-display text-[31px] leading-none font-bold tracking-[-0.02em] text-bone">
+          <h1 className="font-display text-bone mt-2 text-[31px] leading-none font-bold tracking-[-0.02em]">
             Week of {week.start}
           </h1>
-          <p className="mt-2 font-mono text-[11.5px] tracking-[0.08em] text-alum-2 uppercase">
+          <p className="text-alum-2 mt-2 font-mono text-[11.5px] tracking-[0.08em] uppercase">
             {res.name}
             {res.title ? ` · ${res.title}` : ""} · {status}
           </p>
           {isManager && teamResources.length > 0 && (
             <form className="mt-3 flex items-center gap-2">
               <input type="hidden" name="week" value={week.start} />
-              <span className="font-mono text-[10px] tracking-[0.1em] text-alum-2 uppercase">
+              <span className="text-alum-2 font-mono text-[10px] tracking-[0.1em] uppercase">
                 Viewing
               </span>
               <select
                 name="resource"
                 defaultValue={res.id}
-                className="h-8 rounded-md border border-line bg-carbon px-2 text-sm text-bone"
+                className="border-line bg-carbon text-bone h-8 rounded-md border px-2 text-sm"
               >
                 {teamResources.map((tr) => (
                   <option key={tr.id} value={tr.id}>
@@ -307,18 +318,18 @@ export default async function TimesheetPage({
       )}
 
       {!editable && (
-        <p className="rounded-lg border border-line bg-steel px-3 py-2 text-[13px] text-alum">
+        <p className="border-line bg-steel text-alum rounded-lg border px-3 py-2 text-[13px]">
           This week is <strong className="text-bone">{status}</strong> and
           locked. A manager must reject it before it can be edited again.
         </p>
       )}
 
       {editable && (
-        <section className="overflow-hidden rounded-xl border border-line bg-graphite">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-steel px-4 py-3">
+        <section className="border-line bg-graphite overflow-hidden rounded-xl border">
+          <div className="border-line bg-steel flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 font-mono text-[10.5px] tracking-[0.1em] text-bone uppercase">
-                <span className="h-[7px] w-[7px] rounded-full bg-cyan" />
+              <div className="text-bone flex items-center gap-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">
+                <span className="bg-cyan h-[7px] w-[7px] rounded-full" />
                 Signals · {signals.length} proposed
                 <span className="text-alum-2 normal-case">
                   from your connected tools
@@ -326,7 +337,11 @@ export default async function TimesheetPage({
               </div>
               {outlookConnected ? (
                 <form action={syncOutlook}>
-                  <input type="hidden" name="entityId" value={active.entityId} />
+                  <input
+                    type="hidden"
+                    name="entityId"
+                    value={active.entityId}
+                  />
                   <input type="hidden" name="resourceId" value={res.id} />
                   <input type="hidden" name="weekStart" value={week.start} />
                   <Button type="submit" variant="outline" size="sm">
@@ -345,7 +360,11 @@ export default async function TimesheetPage({
             {signals.length > 0 && (
               <div className="flex items-center gap-2">
                 <form action={dismissAllSignalsAction}>
-                  <input type="hidden" name="entityId" value={active.entityId} />
+                  <input
+                    type="hidden"
+                    name="entityId"
+                    value={active.entityId}
+                  />
                   <input type="hidden" name="resourceId" value={res.id} />
                   <input type="hidden" name="weekStart" value={week.start} />
                   <Button type="submit" variant="ghost" size="sm">
@@ -353,7 +372,11 @@ export default async function TimesheetPage({
                   </Button>
                 </form>
                 <form action={acceptAllSignalsAction}>
-                  <input type="hidden" name="entityId" value={active.entityId} />
+                  <input
+                    type="hidden"
+                    name="entityId"
+                    value={active.entityId}
+                  />
                   <input type="hidden" name="resourceId" value={res.id} />
                   <input type="hidden" name="weekStart" value={week.start} />
                   <Button type="submit" size="sm">
@@ -366,7 +389,7 @@ export default async function TimesheetPage({
 
           {signals.length === 0 ? (
             <div className="flex flex-col items-start gap-3 px-4 py-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 No signals yet. Once your calendar and tools are connected,
                 proposed hours show up here to accept or skip — nothing posts
                 without you accepting it. For now, generate a few samples to try
@@ -389,12 +412,12 @@ export default async function TimesheetPage({
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                    <span className="text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] uppercase">
                       {s.provider}
                     </span>
                     <span className="font-medium">{s.evidence}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {s.provenance ? `${s.provenance} · ` : ""}
                     {s.chargeType === "project"
                       ? `${s.projectCode ?? ""} · ${s.phaseName ?? ""}`
@@ -410,7 +433,11 @@ export default async function TimesheetPage({
                       </span>
                       <form action={acceptSignalAction}>
                         <input type="hidden" name="signalId" value={s.id} />
-                        <input type="hidden" name="charge" value={nudges.get(s.id)!.value} />
+                        <input
+                          type="hidden"
+                          name="charge"
+                          value={nudges.get(s.id)!.value}
+                        />
                         <Button type="submit" variant="outline" size="xs">
                           Use their charge
                         </Button>
@@ -467,7 +494,11 @@ export default async function TimesheetPage({
         resourceBillRate={res.billRate}
         resourceCostRate={res.costRate}
         initialRows={rows}
-        projects={projects.map((p) => ({ id: p.id, code: p.code, name: p.name }))}
+        projects={projects.map((p) => ({
+          id: p.id,
+          code: p.code,
+          name: p.name,
+        }))}
         phases={phases}
         indirectCodes={codes.map((c) => ({ id: c.id, code: c.code }))}
       />
@@ -480,7 +511,9 @@ export default async function TimesheetPage({
           <input type="hidden" name="entityId" value={active.entityId} />
           <input type="hidden" name="resourceId" value={res.id} />
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Add a single entry</span>
+            <span className="text-muted-foreground text-xs">
+              Add a single entry
+            </span>
             <select
               name="charge"
               required
@@ -498,7 +531,7 @@ export default async function TimesheetPage({
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Day</span>
+            <span className="text-muted-foreground text-xs">Day</span>
             <select
               name="date"
               className="h-9 rounded-md border bg-transparent px-2 text-sm"
@@ -512,7 +545,7 @@ export default async function TimesheetPage({
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Hours</span>
+            <span className="text-muted-foreground text-xs">Hours</span>
             <input
               type="number"
               name="hours"

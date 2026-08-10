@@ -4,6 +4,7 @@ import {
   type CaptureSummary,
 } from "@/lib/capture-db";
 import type { RawActivity } from "@/lib/integrations/capture";
+import { graphCalendarSource } from "@/lib/integrations/graph-calendar";
 import { graphMailSource } from "@/lib/integrations/graph-mail";
 import { hubspotSource } from "@/lib/integrations/hubspot";
 import { mondaySource } from "@/lib/integrations/monday";
@@ -112,10 +113,20 @@ export function assembleFetchers(input: AssembleInput): Fetcher[] {
     });
   }
   for (const o of input.outlook) {
+    // Each connected mailbox contributes both sent mail and calendar meetings.
     fetchers.push({
-      label: `outlook:${o.entraId}`,
+      label: `outlook-mail:${o.entraId}`,
       run: async () =>
         graphMailSource(o.entraId, input.internalDomains).fetch(
+          await o.getToken(),
+          w.startISO,
+          w.endISO,
+        ),
+    });
+    fetchers.push({
+      label: `outlook-calendar:${o.entraId}`,
+      run: async () =>
+        graphCalendarSource(o.entraId).fetch(
           await o.getToken(),
           w.startISO,
           w.endISO,
