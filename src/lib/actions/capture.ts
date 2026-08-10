@@ -2,12 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { assertEntityRole, MANAGER_ROLES } from "@/lib/auth";
-import { syncEntity } from "@/lib/capture-service";
-import type { SyncResult } from "@/lib/capture-sync";
+import { syncEntity, type SyncEntityResult } from "@/lib/capture-service";
 
 // Feedback state for the "Sync now" button (rendered via useActionState).
 export type SyncNowState =
-  { ok: true; result: SyncResult } | { ok: false; error: string } | null;
+  { ok: true; result: SyncEntityResult } | { ok: false; error: string } | null;
 
 // Manual "Sync now" — manager+ only. Runs the same pull as the daily cron,
 // attributed to the user who clicked, and returns a result so the UI can show
