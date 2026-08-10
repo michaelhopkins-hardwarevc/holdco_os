@@ -17,21 +17,24 @@ import {
 } from "@/components/ui/table";
 import { SyncNow } from "./sync-now";
 import { runWithUser } from "@/db/rls";
-import { disconnectOutlook } from "@/lib/actions/connections";
+import { disconnectOutlook, disconnectXero } from "@/lib/actions/connections";
 import { deleteSignalRuleAction } from "@/lib/actions/signals";
-import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
+import { ADMIN_ROLES, MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
 import { getOutlookConnection } from "@/lib/integrations/outlook-store";
+import { getXeroConnection } from "@/lib/integrations/xero-store";
 import { getResourceForUser, listSignalRules } from "@/lib/queries";
 
 export default async function ConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; xero?: string }>;
 }) {
   const { ctx, active } = await requireActiveEntity();
   const sp = await searchParams;
   const conn = await getOutlookConnection(active.entityId, ctx.appUser.id);
   const connected = Boolean(conn && conn.status === "connected");
+  const isAdmin = ADMIN_ROLES.includes(active.role);
+  const xeroConn = isAdmin ? await getXeroConnection(active.entityId) : null;
 
   const rules = await runWithUser(ctx.authUser.id, async (tx) => {
     const [res] = await getResourceForUser(tx, active.entityId, ctx.appUser.id);
@@ -90,6 +93,38 @@ export default async function ConnectionsPage({
           )}
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card className="max-w-lg">
+          <CardHeader>
+            <CardTitle>Xero</CardTitle>
+            <CardDescription>
+              Accounting · push confirmed invoices as drafts for approval ·{" "}
+              {active.entityName}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <span className="text-sm">
+              {xeroConn ? "Connected" : "Not connected"}
+            </span>
+            {xeroConn ? (
+              <form action={disconnectXero}>
+                <input type="hidden" name="entityId" value={active.entityId} />
+                <Button type="submit" variant="outline" size="sm">
+                  Disconnect
+                </Button>
+              </form>
+            ) : (
+              <a
+                href="/api/connections/xero/start"
+                className={buttonVariants({ size: "sm" })}
+              >
+                Connect Xero
+              </a>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {canSync && (
         <Card className="max-w-lg">

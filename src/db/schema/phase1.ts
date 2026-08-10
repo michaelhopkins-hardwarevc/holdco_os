@@ -283,6 +283,10 @@ export const invoice = pgTable(
     amountPaid: integer("amount_paid").notNull().default(0),
     terms: text("terms"),
     qboId: text("qbo_id"),
+    // Xero draft-invoice export (WIS M4). Set once pushed; the Xero draft awaits
+    // human approval and sending in Xero.
+    xeroInvoiceId: text("xero_invoice_id"),
+    xeroStatus: text("xero_status"),
     pdfUrl: text("pdf_url"),
     ...auditColumns(),
   },

@@ -5,9 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { resource, signal } from "@/db/schema";
-import { getEntityRole, requireContext } from "@/lib/auth";
+import { ADMIN_ROLES, getEntityRole, requireContext } from "@/lib/auth";
 import { syncUserOutlook } from "@/lib/capture-service";
 import { disconnectOutlook as disconnectOutlookConn } from "@/lib/integrations/outlook-store";
+import { disconnectXero as disconnectXeroConn } from "@/lib/integrations/xero-store";
 import { addWeeks, getWeek } from "@/lib/timesheet";
 
 async function requireMember(entityId: string) {
@@ -50,6 +51,18 @@ export async function syncOutlook(formData: FormData): Promise<void> {
     params.set("syncError", outcome.error.slice(0, 300));
   }
   redirect(`/timesheet?${params.toString()}`);
+}
+
+// Disconnect the firm's Xero organisation (admin/owner only).
+export async function disconnectXero(formData: FormData): Promise<void> {
+  const entityId = String(formData.get("entityId") ?? "");
+  const ctx = await requireMember(entityId);
+  const role = await getEntityRole(ctx.appUser.id, entityId);
+  if (!role || !ADMIN_ROLES.includes(role)) {
+    throw new Error("Only an admin can disconnect Xero.");
+  }
+  await disconnectXeroConn(entityId, ctx.appUser.id);
+  revalidatePath("/connections");
 }
 
 export async function disconnectOutlook(formData: FormData): Promise<void> {
