@@ -4,12 +4,12 @@ import type { TokenSet } from "@/lib/integrations/calendar";
 // organisation so the app can push DRAFT invoices. Read/write scopes are the
 // minimum for draft invoices + tracking; offline_access gives a refresh token.
 
+// Minimal scopes for draft-invoice export, matching the app's granular scope
+// set (it exposes accounting.invoices, NOT the old accounting.transactions
+// umbrella). offline_access gives a refresh token.
 const SCOPES = [
   "offline_access",
-  "openid",
-  "profile",
-  "email",
-  "accounting.transactions",
+  "accounting.invoices",
   "accounting.contacts",
   "accounting.settings",
 ].join(" ");
