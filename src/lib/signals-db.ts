@@ -196,8 +196,9 @@ export async function acceptOpenSignals(
   let accepted = 0;
   for (const sig of signals) {
     if (sig.state !== "open") continue;
-    await acceptSignal(db, actor, rates, sig);
-    accepted += 1;
+    // Skipped unresolved drafts return null and stay open — don't count them.
+    const entryId = await acceptSignal(db, actor, rates, sig);
+    if (entryId) accepted += 1;
   }
   return accepted;
 }
