@@ -30,7 +30,9 @@ describe("xeroOAuth.authUrl", () => {
     );
     const scope = url.searchParams.get("scope") ?? "";
     expect(scope).toContain("offline_access");
-    expect(scope).toContain("accounting.transactions");
+    expect(scope).toContain("accounting.invoices");
+    // We must NOT request the umbrella scope the app doesn't expose.
+    expect(scope).not.toContain("accounting.transactions");
   });
 
   it("encodes scope spaces as %20, never + (Xero rejects + with invalid_scope)", () => {
@@ -38,7 +40,7 @@ describe("xeroOAuth.authUrl", () => {
       "st-abc",
       "https://app.example.com/api/connections/xero/callback",
     );
-    expect(raw).toContain("scope=offline_access%20openid");
+    expect(raw).toContain("scope=offline_access%20accounting.invoices");
     expect(raw).not.toContain("+");
   });
 });

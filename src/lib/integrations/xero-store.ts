@@ -51,7 +51,7 @@ export async function upsertXeroConnection(input: {
       userId: input.userId,
       provider: PROVIDER,
       status: "connected",
-      scopes: "accounting.transactions accounting.contacts accounting.settings",
+      scopes: "accounting.invoices accounting.contacts accounting.settings",
       externalAccountId: input.tenantId,
       ...encrypted,
       createdBy: input.userId,
