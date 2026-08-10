@@ -3,7 +3,11 @@ import { signal, timeEntry } from "@/db/schema";
 import type { QueryDb } from "@/lib/queries";
 import { recordRule } from "@/lib/rules-db";
 import { computeAmounts, getWeek } from "@/lib/timesheet";
-import { type Actor, type ResourceRates, TimesheetLockedError } from "@/lib/timesheet-db";
+import {
+  type Actor,
+  type ResourceRates,
+  TimesheetLockedError,
+} from "@/lib/timesheet-db";
 
 // DB operations for Signals, split out from the server actions so they can be
 // tested against a real Postgres engine. Only accepting a signal writes a
@@ -62,6 +66,12 @@ export async function acceptSignal(
   const indirectCodeId = isProject ? null : charge.indirectCodeId;
   const billable = isProject; // project time bills; indirect never does
   const hours = Number(sig.proposedHours);
+
+  // An unresolved draft (no project and no indirect code) can't post a time
+  // entry — leave it open for the person to link a charge first. This is what
+  // lets "Accept all" skip unlinked activity drafts instead of failing on them.
+  const hasTarget = isProject ? !!projectId : !!indirectCodeId;
+  if (!hasTarget) return null;
 
   // Fold into an existing draft cell for the same charge + day, if any.
   const dayEntries = await db
@@ -154,7 +164,12 @@ export async function acceptSignal(
     entityId: sig.entityId,
     resourceId: sig.resourceId,
     subject: sig.evidence,
-    charge: { chargeType: charge.chargeType, projectId, phaseId, indirectCodeId },
+    charge: {
+      chargeType: charge.chargeType,
+      projectId,
+      phaseId,
+      indirectCodeId,
+    },
   });
 
   return entryId;
