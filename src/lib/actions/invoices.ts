@@ -24,6 +24,10 @@ import {
 } from "@/lib/invoicing-db";
 import type { GroupBy } from "@/lib/invoicing";
 import { xeroProvider } from "@/lib/integrations/xero";
+import {
+  freshXeroAccessToken,
+  getXeroConnection,
+} from "@/lib/integrations/xero-store";
 import { dollarsToCentsOrZero } from "@/lib/money";
 import { getInvoice, listInvoiceLines } from "@/lib/queries";
 import type { Actor } from "@/lib/timesheet-db";
@@ -152,17 +156,17 @@ export async function pushInvoiceToXero(formData: FormData): Promise<void> {
   const entityId = formRequired(formData, "entityId", "Entity");
   const invoiceId = formRequired(formData, "invoiceId", "Invoice");
   const actor = await requireManager(entityId);
-  const token = process.env.XERO_ACCESS_TOKEN;
-  const tenantId = process.env.XERO_TENANT_ID;
-  if (!token || !tenantId) {
+  const conn = await getXeroConnection(entityId);
+  if (!conn) {
     throw new Error(
-      "Xero isn't connected. Set XERO_ACCESS_TOKEN and XERO_TENANT_ID.",
+      "Xero isn't connected. Connect it on the Connections page first.",
     );
   }
+  const { accessToken, tenantId } = await freshXeroAccessToken(conn);
   await exportInvoiceToXero(
     db,
     actor,
-    xeroProvider(token, tenantId),
+    xeroProvider(accessToken, tenantId),
     entityId,
     invoiceId,
   );
