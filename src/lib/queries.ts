@@ -283,6 +283,8 @@ export function getInvoice(db: QueryDb, entityId: string, invoiceId: string) {
       amountPaid: invoice.amountPaid,
       terms: invoice.terms,
       pdfUrl: invoice.pdfUrl,
+      xeroInvoiceId: invoice.xeroInvoiceId,
+      xeroStatus: invoice.xeroStatus,
       clientName: client.name,
       projectCode: project.code,
       projectName: project.name,
@@ -298,7 +300,9 @@ export function listInvoiceLines(db: QueryDb, invoiceId: string) {
   return db
     .select()
     .from(invoiceLine)
-    .where(and(eq(invoiceLine.invoiceId, invoiceId), isNull(invoiceLine.deletedAt)))
+    .where(
+      and(eq(invoiceLine.invoiceId, invoiceId), isNull(invoiceLine.deletedAt)),
+    )
     .orderBy(asc(invoiceLine.sortOrder));
 }
 

@@ -23,9 +23,11 @@ import {
   voidInvoice,
 } from "@/lib/invoicing-db";
 import type { GroupBy } from "@/lib/invoicing";
+import { xeroProvider } from "@/lib/integrations/xero";
 import { dollarsToCentsOrZero } from "@/lib/money";
 import { getInvoice, listInvoiceLines } from "@/lib/queries";
 import type { Actor } from "@/lib/timesheet-db";
+import { exportInvoiceToXero } from "@/lib/xero-export-db";
 
 // Every invoicing write is a financial action: manager/admin/owner only (spec §9).
 async function requireManager(entityId: string): Promise<Actor> {
@@ -35,7 +37,10 @@ async function requireManager(entityId: string): Promise<Actor> {
 
 // Build the branded PDF from the current invoice + lines, store it in the
 // private "invoices" bucket, and record its path on the invoice.
-async function refreshInvoicePdf(entityId: string, invoiceId: string): Promise<void> {
+async function refreshInvoicePdf(
+  entityId: string,
+  invoiceId: string,
+): Promise<void> {
   const [inv] = await getInvoice(db, entityId, invoiceId);
   if (!inv) return;
   const lines = await listInvoiceLines(db, invoiceId);
@@ -65,7 +70,10 @@ async function refreshInvoicePdf(entityId: string, invoiceId: string): Promise<v
     pdfLines,
   );
   const path = await storeInvoicePdf(entityId, invoiceId, bytes);
-  await db.update(invoice).set({ pdfUrl: path }).where(eq(invoice.id, invoiceId));
+  await db
+    .update(invoice)
+    .set({ pdfUrl: path })
+    .where(eq(invoice.id, invoiceId));
 }
 
 export async function generateInvoice(formData: FormData): Promise<void> {
@@ -74,7 +82,12 @@ export async function generateInvoice(formData: FormData): Promise<void> {
   const projectId = formRequired(formData, "projectId", "Project");
   const periodStart = formRequired(formData, "periodStart", "Period start");
   const periodEnd = formRequired(formData, "periodEnd", "Period end");
-  const groupBy = formEnum(formData, "groupBy", ["phase", "resource"] as const, "phase") as GroupBy;
+  const groupBy = formEnum(
+    formData,
+    "groupBy",
+    ["phase", "resource"] as const,
+    "phase",
+  ) as GroupBy;
 
   const invoiceId = await generateDraftInvoice(db, actor, {
     entityId,
@@ -93,7 +106,12 @@ export async function addInvoiceLine(formData: FormData): Promise<void> {
   const actor = await requireManager(entityId);
   const description = formRequired(formData, "description", "Description");
   const amount = dollarsToCentsOrZero(formStr(formData, "amount"));
-  const source = formEnum(formData, "source", ["manual", "fixed"] as const, "manual");
+  const source = formEnum(
+    formData,
+    "source",
+    ["manual", "fixed"] as const,
+    "manual",
+  );
   await addManualLine(db, actor, invoiceId, { description, amount, source });
   revalidatePath(`/invoices/${invoiceId}`);
 }
@@ -129,6 +147,29 @@ export async function sendInvoice(formData: FormData): Promise<void> {
   revalidatePath("/invoices");
 }
 
+// Push this invoice to Xero as a DRAFT for human approval (WIS M4).
+export async function pushInvoiceToXero(formData: FormData): Promise<void> {
+  const entityId = formRequired(formData, "entityId", "Entity");
+  const invoiceId = formRequired(formData, "invoiceId", "Invoice");
+  const actor = await requireManager(entityId);
+  const token = process.env.XERO_ACCESS_TOKEN;
+  const tenantId = process.env.XERO_TENANT_ID;
+  if (!token || !tenantId) {
+    throw new Error(
+      "Xero isn't connected. Set XERO_ACCESS_TOKEN and XERO_TENANT_ID.",
+    );
+  }
+  await exportInvoiceToXero(
+    db,
+    actor,
+    xeroProvider(token, tenantId),
+    entityId,
+    invoiceId,
+  );
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
+}
+
 export async function addPayment(formData: FormData): Promise<void> {
   const entityId = formRequired(formData, "entityId", "Entity");
   const invoiceId = formRequired(formData, "invoiceId", "Invoice");
@@ -138,7 +179,12 @@ export async function addPayment(formData: FormData): Promise<void> {
   if (amount <= 0) throw new Error("Enter a payment amount greater than zero.");
   const method = formStr(formData, "method");
   const reference = formStr(formData, "reference");
-  await recordPayment(db, actor, invoiceId, { date, amount, method, reference });
+  await recordPayment(db, actor, invoiceId, {
+    date,
+    amount,
+    method,
+    reference,
+  });
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/invoices");
 }
