@@ -16,23 +16,27 @@ const WINDOW = {
 };
 const base = {
   window: WINDOW,
-  mondayBoardIds: [] as string[],
+  mondayMemberUserIds: [] as string[],
   outlook: [] as { entraId: string; getToken: () => Promise<string> }[],
   internalDomains: ["brooksstevens.com"],
 };
 
 describe("assembleFetchers", () => {
-  it("includes Monday only with a token AND at least one board", () => {
+  it("includes Monday only with a token AND at least one member user id", () => {
     expect(
-      assembleFetchers({ ...base, mondayToken: "t", mondayBoardIds: [] }),
+      assembleFetchers({ ...base, mondayToken: "t", mondayMemberUserIds: [] }),
     ).toHaveLength(0);
     expect(
-      assembleFetchers({ ...base, mondayToken: null, mondayBoardIds: ["b1"] }),
+      assembleFetchers({
+        ...base,
+        mondayToken: null,
+        mondayMemberUserIds: ["u1"],
+      }),
     ).toHaveLength(0);
     const f = assembleFetchers({
       ...base,
       mondayToken: "t",
-      mondayBoardIds: ["b1"],
+      mondayMemberUserIds: ["u1"],
     });
     expect(f.map((x) => x.label)).toEqual(["monday"]);
   });
@@ -62,7 +66,7 @@ describe("assembleFetchers", () => {
     const f = assembleFetchers({
       ...base,
       mondayToken: "t",
-      mondayBoardIds: ["b1", "b2"],
+      mondayMemberUserIds: ["u1", "u2"],
       hubspotToken: "k",
       outlook: [{ entraId: "entra-a", getToken: async () => "ta" }],
     });

@@ -75,7 +75,8 @@ export type OutlookBinding = {
 export type AssembleInput = {
   window: CaptureWindow;
   mondayToken?: string | null;
-  mondayBoardIds: string[];
+  // Our people's Monday user ids — capture their activity across all boards.
+  mondayMemberUserIds: string[];
   hubspotToken?: string | null;
   outlook: OutlookBinding[];
   internalDomains: string[];
@@ -84,19 +85,23 @@ export type AssembleInput = {
 /**
  * Turn the available tokens/connections into bound fetchers for runCapture.
  * A source is included only when it can actually run: Monday needs a token AND
- * at least one crosswalked board; HubSpot needs its Service Key; Outlook adds
- * one fetcher per connected mailbox.
+ * at least one of our people's user ids (to scope to our team's activity);
+ * HubSpot needs its Service Key; Outlook adds one fetcher per connected mailbox.
  */
 export function assembleFetchers(input: AssembleInput): Fetcher[] {
   const w = input.window;
   const fetchers: Fetcher[] = [];
 
-  if (input.mondayToken && input.mondayBoardIds.length > 0) {
+  if (input.mondayToken && input.mondayMemberUserIds.length > 0) {
     const token = input.mondayToken;
     fetchers.push({
       label: "monday",
       run: () =>
-        mondaySource(input.mondayBoardIds).fetch(token, w.startISO, w.endISO),
+        mondaySource({ memberUserIds: input.mondayMemberUserIds }).fetch(
+          token,
+          w.startISO,
+          w.endISO,
+        ),
     });
   }
   if (input.hubspotToken) {

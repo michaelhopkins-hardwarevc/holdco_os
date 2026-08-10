@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { crosswalkProject, entity, sourceConnection } from "@/db/schema";
+import { crosswalkPerson, entity, sourceConnection } from "@/db/schema";
 import {
   assembleFetchers,
   pickWindow,
@@ -34,18 +34,20 @@ export async function syncEntity(opts?: {
     : await db.select().from(entity).where(isNull(entity.deletedAt)).limit(1);
   if (!ent) throw new Error("No entity to sync.");
 
-  // Monday: only the crosswalked project boards.
-  const boardRows = await db
-    .select({ id: crosswalkProject.mondayBoardId })
-    .from(crosswalkProject)
+  // Monday: our people's user ids, so we capture their activity across ALL
+  // boards (unmapped boards land as unresolved drafts to link).
+  const mondayPeople = await db
+    .select({ id: crosswalkPerson.sourceUserId })
+    .from(crosswalkPerson)
     .where(
       and(
-        eq(crosswalkProject.entityId, ent.id),
-        isNull(crosswalkProject.deletedAt),
+        eq(crosswalkPerson.entityId, ent.id),
+        eq(crosswalkPerson.sourceSystem, "monday"),
+        isNull(crosswalkPerson.deletedAt),
       ),
     );
-  const mondayBoardIds = [
-    ...new Set(boardRows.map((r) => r.id).filter((x): x is string => !!x)),
+  const mondayMemberUserIds = [
+    ...new Set(mondayPeople.map((r) => r.id).filter((x): x is string => !!x)),
   ];
 
   // Outlook: one binding per connected mailbox.
@@ -73,7 +75,7 @@ export async function syncEntity(opts?: {
   const fetchers = assembleFetchers({
     window,
     mondayToken: process.env.MONDAY_API_TOKEN,
-    mondayBoardIds,
+    mondayMemberUserIds,
     hubspotToken: process.env.HUBSPOT_SERVICE_KEY,
     outlook,
     internalDomains: INTERNAL_DOMAINS,

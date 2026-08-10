@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { domainOf } from "@/lib/integrations/capture";
 import { graphMailToActivities } from "@/lib/integrations/graph-mail";
 import { hubspotV3ToActivities } from "@/lib/integrations/hubspot";
-import { mondayToActivities } from "@/lib/integrations/monday";
+import { mondayTimeToISO, mondayToActivities } from "@/lib/integrations/monday";
 
 describe("domainOf", () => {
   it("extracts and lowercases the domain", () => {
@@ -61,7 +61,34 @@ describe("graphMailToActivities", () => {
   });
 });
 
+describe("mondayTimeToISO", () => {
+  it("converts Monday's 17-digit activity_log timestamp to ISO", () => {
+    // 17858734685065330 / 10000 ms -> a real 2026 date, not NaN.
+    const iso = mondayTimeToISO("17858734685065330");
+    expect(iso).toMatch(/^2026-/);
+    expect(Number.isNaN(Date.parse(iso))).toBe(false);
+  });
+  it("passes through an already-ISO value", () => {
+    expect(mondayTimeToISO("2026-07-28T09:00:00Z")).toBe(
+      "2026-07-28T09:00:00.000Z",
+    );
+  });
+});
+
 describe("mondayToActivities", () => {
+  it("maps a real 17-digit activity log to a valid occurredAt", () => {
+    const [a] = mondayToActivities([
+      {
+        id: "log0",
+        created_at: "17858734685065330",
+        creator_id: "42",
+        board_id: "b1",
+        kind: "status_change",
+      },
+    ]);
+    expect(Number.isNaN(Date.parse(a.occurredAt))).toBe(false);
+  });
+
   it("maps a status change as hard with its board id", () => {
     const [a] = mondayToActivities([
       {
