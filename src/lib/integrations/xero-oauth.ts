@@ -58,14 +58,20 @@ export type XeroTenant = { tenantId: string; tenantName: string };
 export const xeroOAuth = {
   authUrl(state: string, redirectUri: string): string {
     const { clientId } = config();
-    const params = new URLSearchParams({
-      response_type: "code",
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: SCOPES,
-      state,
-    });
-    return `https://login.xero.com/identity/connect/authorize?${params}`;
+    // Build the query with encodeURIComponent (spaces -> %20). URLSearchParams
+    // encodes spaces as "+", which Xero's authorize endpoint rejects in `scope`.
+    const query = (
+      [
+        ["response_type", "code"],
+        ["client_id", clientId],
+        ["redirect_uri", redirectUri],
+        ["scope", SCOPES],
+        ["state", state],
+      ] as const
+    )
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join("&");
+    return `https://login.xero.com/identity/connect/authorize?${query}`;
   },
 
   exchangeCode(code: string, redirectUri: string): Promise<TokenSet> {

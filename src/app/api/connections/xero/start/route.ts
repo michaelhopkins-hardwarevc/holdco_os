@@ -24,6 +24,17 @@ export async function GET(request: NextRequest) {
   const redirectUri = `${origin}/api/connections/xero/callback`;
   const state = crypto.randomBytes(16).toString("hex");
 
+  // Build the authorize URL first so a missing XERO_CLIENT_ID/SECRET surfaces as
+  // a readable error instead of a blank 500.
+  let authUrl: string;
+  try {
+    authUrl = xeroOAuth.authUrl(state, redirectUri);
+  } catch {
+    return NextResponse.redirect(
+      new URL("/connections?error=xero_config", request.url),
+    );
+  }
+
   const store = await cookies();
   store.set("xero_oauth_state", state, {
     httpOnly: true,
@@ -32,5 +43,5 @@ export async function GET(request: NextRequest) {
     maxAge: 600,
   });
 
-  return NextResponse.redirect(xeroOAuth.authUrl(state, redirectUri));
+  return NextResponse.redirect(authUrl);
 }

@@ -32,4 +32,13 @@ describe("xeroOAuth.authUrl", () => {
     expect(scope).toContain("offline_access");
     expect(scope).toContain("accounting.transactions");
   });
+
+  it("encodes scope spaces as %20, never + (Xero rejects + with invalid_scope)", () => {
+    const raw = xeroOAuth.authUrl(
+      "st-abc",
+      "https://app.example.com/api/connections/xero/callback",
+    );
+    expect(raw).toContain("scope=offline_access%20openid");
+    expect(raw).not.toContain("+");
+  });
 });
