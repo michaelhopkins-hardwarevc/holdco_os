@@ -14,10 +14,7 @@ import {
   timeEntry,
 } from "@/db/schema";
 import { createTestDb, type TestDb } from "@/db/test-helpers";
-import {
-  acceptSignal,
-  dismissSignal,
-} from "@/lib/signals-db";
+import { acceptSignal, dismissSignal } from "@/lib/signals-db";
 import { submitTimesheetWeek } from "@/lib/timesheet-db";
 
 let pg: TestDb["pg"];
@@ -65,11 +62,21 @@ async function setup() {
     .returning();
   const [ph] = await db
     .insert(phase)
-    .values({ organizationId: org.id, entityId: ent.id, projectId: proj.id, name: "D" })
+    .values({
+      organizationId: org.id,
+      entityId: ent.id,
+      projectId: proj.id,
+      name: "D",
+    })
     .returning();
   const [ind] = await db
     .insert(indirectCode)
-    .values({ organizationId: org.id, entityId: ent.id, code: "PTO", category: "pto" })
+    .values({
+      organizationId: org.id,
+      entityId: ent.id,
+      code: "PTO",
+      category: "pto",
+    })
     .returning();
 
   const actor = { orgId: org.id, actorId: res.id };
@@ -77,7 +84,10 @@ async function setup() {
   return { org, ent, res, proj, ph, ind, actor, rates };
 }
 
-async function makeSignal(s: Awaited<ReturnType<typeof setup>>, over: Partial<typeof signal.$inferInsert>) {
+async function makeSignal(
+  s: Awaited<ReturnType<typeof setup>>,
+  over: Partial<typeof signal.$inferInsert>,
+) {
   const [row] = await db
     .insert(signal)
     .values({
@@ -124,6 +134,29 @@ describe("acceptSignal", () => {
     expect(after.timeEntryId).toBe(entryId);
   });
 
+  it("skips an unresolved draft (no charge target) and leaves it open", async () => {
+    const s = await setup();
+    const sig = await makeSignal(s, {
+      chargeType: "project",
+      projectId: null, // unresolved activity draft — needs the person to link
+      proposedHours: "2.00",
+      billable: false,
+      provider: "activity",
+    });
+
+    const entryId = await acceptSignal(db, s.actor, s.rates, sig);
+    expect(entryId).toBeNull();
+
+    const entries = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.resourceId, s.res.id));
+    expect(entries).toHaveLength(0);
+
+    const [after] = await db.select().from(signal).where(eq(signal.id, sig.id));
+    expect(after.state).toBe("open"); // still there to link
+  });
+
   it("never bills an indirect signal", async () => {
     const s = await setup();
     const sig = await makeSignal(s, {
@@ -133,7 +166,10 @@ describe("acceptSignal", () => {
       billable: true, // even if flagged, indirect never bills
     });
     const entryId = await acceptSignal(db, s.actor, s.rates, sig);
-    const [entry] = await db.select().from(timeEntry).where(eq(timeEntry.id, entryId!));
+    const [entry] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, entryId!));
     expect(entry.billable).toBe(false);
     expect(entry.billableAmount).toBe(0);
     expect(entry.costAmount).toBe(72000);
@@ -193,7 +229,10 @@ describe("acceptSignal", () => {
       proposedHours: "4.00",
     });
     const first = await acceptSignal(db, s.actor, s.rates, sig);
-    const [reloaded] = await db.select().from(signal).where(eq(signal.id, sig.id));
+    const [reloaded] = await db
+      .select()
+      .from(signal)
+      .where(eq(signal.id, sig.id));
     const second = await acceptSignal(db, s.actor, s.rates, reloaded);
     expect(second).toBe(first);
     const entries = await db.select().from(timeEntry);

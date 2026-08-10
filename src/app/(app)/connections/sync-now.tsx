@@ -31,6 +31,14 @@ export function SyncNow({ entityId }: { entityId: string }) {
             {state.result.unresolved} unresolved.
           </p>
           <p className="text-muted-foreground">
+            Drafted <strong>{state.result.drafted.blocks}</strong> time block
+            {state.result.drafted.blocks === 1 ? "" : "s"} across{" "}
+            {state.result.drafted.resources} person
+            {state.result.drafted.resources === 1 ? "" : "s"} (
+            {state.result.drafted.resolved} pre-charged,{" "}
+            {state.result.drafted.unresolved} to link) — see the Timesheet.
+          </p>
+          <p className="text-muted-foreground">
             {state.result.sourceLabels.length > 0
               ? `Sources run: ${state.result.sourceLabels.join(", ")}.`
               : "No sources configured (check MONDAY_API_TOKEN / HUBSPOT_SERVICE_KEY and that Outlook is connected)."}
