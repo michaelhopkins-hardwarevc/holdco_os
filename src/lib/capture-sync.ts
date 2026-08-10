@@ -4,6 +4,7 @@ import {
   type CaptureSummary,
 } from "@/lib/capture-db";
 import type { RawActivity } from "@/lib/integrations/capture";
+import { graphCalendarSource } from "@/lib/integrations/graph-calendar";
 import { graphMailSource } from "@/lib/integrations/graph-mail";
 import { hubspotSource } from "@/lib/integrations/hubspot";
 import { mondaySource } from "@/lib/integrations/monday";
@@ -75,7 +76,8 @@ export type OutlookBinding = {
 export type AssembleInput = {
   window: CaptureWindow;
   mondayToken?: string | null;
-  mondayBoardIds: string[];
+  // Our people's Monday user ids — capture their activity across all boards.
+  mondayMemberUserIds: string[];
   hubspotToken?: string | null;
   outlook: OutlookBinding[];
   internalDomains: string[];
@@ -84,19 +86,23 @@ export type AssembleInput = {
 /**
  * Turn the available tokens/connections into bound fetchers for runCapture.
  * A source is included only when it can actually run: Monday needs a token AND
- * at least one crosswalked board; HubSpot needs its Service Key; Outlook adds
- * one fetcher per connected mailbox.
+ * at least one of our people's user ids (to scope to our team's activity);
+ * HubSpot needs its Service Key; Outlook adds one fetcher per connected mailbox.
  */
 export function assembleFetchers(input: AssembleInput): Fetcher[] {
   const w = input.window;
   const fetchers: Fetcher[] = [];
 
-  if (input.mondayToken && input.mondayBoardIds.length > 0) {
+  if (input.mondayToken && input.mondayMemberUserIds.length > 0) {
     const token = input.mondayToken;
     fetchers.push({
       label: "monday",
       run: () =>
-        mondaySource(input.mondayBoardIds).fetch(token, w.startISO, w.endISO),
+        mondaySource({ memberUserIds: input.mondayMemberUserIds }).fetch(
+          token,
+          w.startISO,
+          w.endISO,
+        ),
     });
   }
   if (input.hubspotToken) {
@@ -107,10 +113,20 @@ export function assembleFetchers(input: AssembleInput): Fetcher[] {
     });
   }
   for (const o of input.outlook) {
+    // Each connected mailbox contributes both sent mail and calendar meetings.
     fetchers.push({
-      label: `outlook:${o.entraId}`,
+      label: `outlook-mail:${o.entraId}`,
       run: async () =>
         graphMailSource(o.entraId, input.internalDomains).fetch(
+          await o.getToken(),
+          w.startISO,
+          w.endISO,
+        ),
+    });
+    fetchers.push({
+      label: `outlook-calendar:${o.entraId}`,
+      run: async () =>
+        graphCalendarSource(o.entraId).fetch(
           await o.getToken(),
           w.startISO,
           w.endISO,

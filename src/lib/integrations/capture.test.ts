@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { domainOf } from "@/lib/integrations/capture";
+import { calendarToActivities } from "@/lib/integrations/graph-calendar";
 import { graphMailToActivities } from "@/lib/integrations/graph-mail";
 import { hubspotV3ToActivities } from "@/lib/integrations/hubspot";
-import { mondayToActivities } from "@/lib/integrations/monday";
+import { mondayTimeToISO, mondayToActivities } from "@/lib/integrations/monday";
 
 describe("domainOf", () => {
   it("extracts and lowercases the domain", () => {
@@ -61,7 +62,34 @@ describe("graphMailToActivities", () => {
   });
 });
 
+describe("mondayTimeToISO", () => {
+  it("converts Monday's 17-digit activity_log timestamp to ISO", () => {
+    // 17858734685065330 / 10000 ms -> a real 2026 date, not NaN.
+    const iso = mondayTimeToISO("17858734685065330");
+    expect(iso).toMatch(/^2026-/);
+    expect(Number.isNaN(Date.parse(iso))).toBe(false);
+  });
+  it("passes through an already-ISO value", () => {
+    expect(mondayTimeToISO("2026-07-28T09:00:00Z")).toBe(
+      "2026-07-28T09:00:00.000Z",
+    );
+  });
+});
+
 describe("mondayToActivities", () => {
+  it("maps a real 17-digit activity log to a valid occurredAt", () => {
+    const [a] = mondayToActivities([
+      {
+        id: "log0",
+        created_at: "17858734685065330",
+        creator_id: "42",
+        board_id: "b1",
+        kind: "status_change",
+      },
+    ]);
+    expect(Number.isNaN(Date.parse(a.occurredAt))).toBe(false);
+  });
+
   it("maps a status change as hard with its board id", () => {
     const [a] = mondayToActivities([
       {
@@ -93,6 +121,43 @@ describe("mondayToActivities", () => {
     ]);
     expect(a.eventType).toBe("monday_update");
     expect(a.hardness).toBe("soft");
+  });
+});
+
+describe("calendarToActivities", () => {
+  const ev = (over: Record<string, unknown>) => ({
+    id: "e",
+    subject: "GermPass design review",
+    startISO: "2026-07-27T09:00:00Z",
+    endISO: "2026-07-27T10:00:00Z",
+    attendees: 3,
+    isAllDay: false,
+    showAs: "busy",
+    ...over,
+  });
+
+  it("maps a meeting as a hard event carrying its subject", () => {
+    const [a] = calendarToActivities([ev({})], "entra-ryan");
+    expect(a).toMatchObject({
+      sourceSystem: "microsoft",
+      sourceUserId: "entra-ryan",
+      eventType: "calendar_meeting",
+      hardness: "hard",
+      subject: "GermPass design review",
+      occurredAt: "2026-07-27T09:00:00Z",
+    });
+  });
+
+  it("drops all-day and free/out-of-office events", () => {
+    const out = calendarToActivities(
+      [
+        ev({ id: "1", isAllDay: true }),
+        ev({ id: "2", showAs: "oof" }),
+        ev({ id: "3" }),
+      ],
+      "entra-ryan",
+    );
+    expect(out.map((a) => a.sourceEventId)).toEqual(["3"]);
   });
 });
 

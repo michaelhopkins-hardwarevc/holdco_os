@@ -4,16 +4,10 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { indirectCode, project, resource, signal } from "@/db/schema";
+import { resource, signal } from "@/db/schema";
 import { getEntityRole, requireContext } from "@/lib/auth";
-import { outlookProvider } from "@/lib/integrations/outlook";
-import {
-  disconnectOutlook as disconnectOutlookConn,
-  freshOutlookAccessToken,
-  getOutlookConnection,
-} from "@/lib/integrations/outlook-store";
-import { listSignalRules } from "@/lib/queries";
-import { eventsToSignals, type RuleCharge } from "@/lib/signals-map";
+import { syncUserOutlook } from "@/lib/capture-service";
+import { disconnectOutlook as disconnectOutlookConn } from "@/lib/integrations/outlook-store";
 import { addWeeks, getWeek } from "@/lib/timesheet";
 
 async function requireMember(entityId: string) {
@@ -23,112 +17,25 @@ async function requireMember(entityId: string) {
   return ctx;
 }
 
-// Pull the current user's Outlook calendar for the week and turn events into
-// open signals (idempotent — prior accepted/dismissed signals are untouched).
+// Refresh the current user's Outlook (mail + calendar) for the week through the
+// unified capture pipeline: land activity_events, resolve (incl. subject->
+// project matching + learned rules), and draft them into confirmable signals.
 export async function syncOutlook(formData: FormData): Promise<void> {
   const entityId = String(formData.get("entityId") ?? "");
-  const resourceId = String(formData.get("resourceId") ?? "");
   const weekStart = String(formData.get("weekStart") ?? "");
   const ctx = await requireMember(entityId);
-
-  const [res] = await db
-    .select()
-    .from(resource)
-    .where(and(eq(resource.id, resourceId), eq(resource.entityId, entityId)))
-    .limit(1);
-  if (!res) throw new Error("Resource not found.");
-  if (res.userId !== ctx.appUser.id) {
-    throw new Error("You can only sync your own calendar.");
-  }
-
-  const conn = await getOutlookConnection(entityId, ctx.appUser.id);
   const week = getWeek(weekStart);
+  const range = {
+    start: `${week.start}T00:00:00Z`,
+    end: `${addWeeks(week.start, 1)}T00:00:00Z`,
+  };
 
   // Collect an outcome, then redirect with it (redirect() must be outside the
   // try/catch, since it works by throwing).
-  let outcome:
-    | { ok: true; events: number; created: number }
-    | { ok: false; error: string };
+  let outcome: { ok: true; drafted: number } | { ok: false; error: string };
   try {
-    if (!conn) throw new Error("Outlook is not connected.");
-    const accessToken = await freshOutlookAccessToken(conn);
-    const startISO = `${week.start}T00:00:00Z`;
-    const endISO = `${addWeeks(week.start, 1)}T00:00:00Z`;
-    const events = await outlookProvider.listEvents(accessToken, startISO, endISO);
-
-    const projects = await db
-      .select({ id: project.id, code: project.code, name: project.name })
-      .from(project)
-      .where(and(eq(project.entityId, entityId), isNull(project.deletedAt)));
-    const codes = await db
-      .select({
-        id: indirectCode.id,
-        code: indirectCode.code,
-        category: indirectCode.category,
-      })
-      .from(indirectCode)
-      .where(
-        and(
-          eq(indirectCode.entityId, entityId),
-          eq(indirectCode.active, true),
-          isNull(indirectCode.deletedAt),
-        ),
-      );
-
-    // Apply this resource's learned rules (valid targets only) before the
-    // generic keyword guess.
-    const ruleRows = await listSignalRules(db, entityId, resourceId);
-    const validProjectIds = new Set(projects.map((p) => p.id));
-    const validCodeIds = new Set(codes.map((c) => c.id));
-    const rules: Record<string, RuleCharge> = {};
-    for (const r of ruleRows) {
-      if (r.chargeType === "project" && r.projectId && validProjectIds.has(r.projectId)) {
-        rules[r.matchValue] = {
-          chargeType: "project",
-          projectId: r.projectId,
-          phaseId: r.phaseId,
-          indirectCodeId: null,
-        };
-      } else if (
-        r.chargeType === "indirect" &&
-        r.indirectCodeId &&
-        validCodeIds.has(r.indirectCodeId)
-      ) {
-        rules[r.matchValue] = {
-          chargeType: "indirect",
-          projectId: null,
-          phaseId: null,
-          indirectCodeId: r.indirectCodeId,
-        };
-      }
-    }
-
-    const mapped = eventsToSignals(events, {
-      projects,
-      indirectCodes: codes,
-      rules,
-    });
-    let created = 0;
-    if (mapped.length > 0) {
-      const inserted = await db
-        .insert(signal)
-        .values(
-          mapped.map((m) => ({
-            organizationId: ctx.appUser.organizationId,
-            entityId,
-            resourceId,
-            provider: "outlook",
-            state: "open" as const,
-            createdBy: ctx.appUser.id,
-            updatedBy: ctx.appUser.id,
-            ...m,
-          })),
-        )
-        .onConflictDoNothing()
-        .returning({ id: signal.id });
-      created = inserted.length;
-    }
-    outcome = { ok: true, events: events.length, created };
+    const { drafted } = await syncUserOutlook(entityId, ctx.appUser.id, range);
+    outcome = { ok: true, drafted: drafted.blocks };
   } catch (e) {
     outcome = {
       ok: false,
@@ -138,8 +45,7 @@ export async function syncOutlook(formData: FormData): Promise<void> {
 
   const params = new URLSearchParams({ week: week.start });
   if (outcome.ok) {
-    params.set("syncEvents", String(outcome.events));
-    params.set("syncCreated", String(outcome.created));
+    params.set("syncDrafted", String(outcome.drafted));
   } else {
     params.set("syncError", outcome.error.slice(0, 300));
   }

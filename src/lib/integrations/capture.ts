@@ -16,6 +16,9 @@ export type RawActivity = WorkEvent & {
   eventType: string;
   occurredAt: string; // ISO 8601, UTC
   hardness: Hardness;
+  // Free-text subject (e.g. a meeting title), when the source has one. Used by
+  // subject->project matching at resolution for sources without a hard id.
+  subject?: string | null;
   // The original record, kept for audit/debug (never used as a master copy).
   raw: unknown;
 };

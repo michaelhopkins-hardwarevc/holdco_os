@@ -86,6 +86,32 @@ async function seedAndActor() {
 }
 
 describe("captureActivities", () => {
+  it("resolves a titled event to a project via subject matching when crosswalks miss", async () => {
+    const { ent, actor } = await seedAndActor();
+    // Calendar-style event: known person (seeded Entra id), subject carries a
+    // real project code (P-6041), no board/deal/domain hint for the crosswalks.
+    await captureActivities(db, actor, ent.id, [
+      {
+        sourceSystem: "microsoft",
+        sourceUserId: "entra-ryan-hahn",
+        sourceEventId: "cal-1",
+        eventType: "calendar_meeting",
+        occurredAt: "2026-07-27T09:00:00Z",
+        hardness: "hard",
+        subject: "P-6041 design review",
+        raw: {},
+      },
+    ]);
+
+    const [row] = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.sourceEventId, "cal-1"));
+    expect(row.resolvedProjectId).not.toBeNull();
+    expect(row.matchedBy).toBe("subject");
+    expect(row.personId).not.toBeNull();
+  });
+
   it("captures a day of events and resolves the hard signals to a project", async () => {
     const { ent, actor } = await seedAndActor();
 
