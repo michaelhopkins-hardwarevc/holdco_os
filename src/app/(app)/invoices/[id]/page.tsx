@@ -22,18 +22,18 @@ import {
 import { runWithUser } from "@/db/rls";
 import {
   addInvoiceLine,
-  addPayment,
   pushInvoiceToXero,
   removeInvoiceLine,
-  sendInvoice,
   updateInvoiceLine,
   voidInvoiceAction,
 } from "@/lib/actions/invoices";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
 import { formatCents, centsToDollars } from "@/lib/money";
-import { getInvoice, listInvoiceLines, listPayments } from "@/lib/queries";
-import { PdfButton } from "./pdf-button";
+import { getInvoice, listInvoiceLines } from "@/lib/queries";
 
+// An invoice is assembled here from confirmed billable time and pushed to Xero
+// as a draft. Xero owns everything after that: approval, sending, payments,
+// and AR. (Operator decision, Sep 2026: "Xero owns it".)
 export default async function InvoiceDetailPage({
   params,
 }: {
@@ -43,20 +43,14 @@ export default async function InvoiceDetailPage({
   const { ctx, active } = await requireActiveEntity();
   const canManage = MANAGER_ROLES.includes(active.role);
 
-  const { invoice, lines, payments } = await runWithUser(
-    ctx.authUser.id,
-    async (tx) => ({
-      invoice: (await getInvoice(tx, active.entityId, id))[0],
-      lines: await listInvoiceLines(tx, id),
-      payments: await listPayments(tx, id),
-    }),
-  );
+  const { invoice, lines } = await runWithUser(ctx.authUser.id, async (tx) => ({
+    invoice: (await getInvoice(tx, active.entityId, id))[0],
+    lines: await listInvoiceLines(tx, id),
+  }));
   if (!invoice) notFound();
 
   const isDraft = invoice.status === "draft";
-  const isSent = invoice.status === "sent";
-  const balance = invoice.total - invoice.amountPaid;
-  const today = new Date().toISOString().slice(0, 10);
+  const inXero = Boolean(invoice.xeroInvoiceId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,46 +69,44 @@ export default async function InvoiceDetailPage({
               ? ` · ${invoice.projectCode} ${invoice.projectName ?? ""}`
               : ""}
           </p>
-          <p className="text-muted-foreground text-sm">
-            Status: <span className="font-medium">{invoice.status}</span>
+          <p className="text-muted-foreground font-mono text-[11px] uppercase">
+            {inXero
+              ? `in xero · ${invoice.xeroStatus ?? "draft"}`
+              : invoice.status === "void"
+                ? "void"
+                : "draft · not yet in xero"}
             {invoice.periodStart && invoice.periodEnd
-              ? ` · Period ${invoice.periodStart} to ${invoice.periodEnd}`
+              ? ` · period ${invoice.periodStart} to ${invoice.periodEnd}`
               : ""}
-            {invoice.invoiceDate ? ` · Invoiced ${invoice.invoiceDate}` : ""}
+            {invoice.invoiceDate ? ` · dated ${invoice.invoiceDate}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {canManage && (
-            <PdfButton entityId={active.entityId} invoiceId={invoice.id} />
+          {canManage && invoice.status !== "void" && !inXero && (
+            <form action={pushInvoiceToXero}>
+              <input type="hidden" name="entityId" value={active.entityId} />
+              <input type="hidden" name="invoiceId" value={invoice.id} />
+              <Button type="submit">Push to Xero ›</Button>
+            </form>
           )}
-          {canManage &&
-            invoice.status !== "void" &&
-            (invoice.xeroInvoiceId ? (
-              <span className="text-muted-foreground text-sm">
-                In Xero ({invoice.xeroStatus ?? "DRAFT"})
-              </span>
-            ) : (
-              <form action={pushInvoiceToXero}>
-                <input type="hidden" name="entityId" value={active.entityId} />
-                <input type="hidden" name="invoiceId" value={invoice.id} />
-                <Button type="submit" variant="outline">
-                  Push to Xero
-                </Button>
-              </form>
-            ))}
-          {canManage &&
-            invoice.status !== "void" &&
-            invoice.status !== "paid" && (
-              <form action={voidInvoiceAction}>
-                <input type="hidden" name="entityId" value={active.entityId} />
-                <input type="hidden" name="invoiceId" value={invoice.id} />
-                <Button type="submit" variant="outline">
-                  Void
-                </Button>
-              </form>
-            )}
+          {canManage && invoice.status !== "void" && !inXero && (
+            <form action={voidInvoiceAction}>
+              <input type="hidden" name="entityId" value={active.entityId} />
+              <input type="hidden" name="invoiceId" value={invoice.id} />
+              <Button type="submit" variant="outline">
+                Void
+              </Button>
+            </form>
+          )}
         </div>
       </div>
+
+      {inXero && (
+        <p className="border-line bg-steel text-alum rounded-lg border px-3 py-2 text-[13px]">
+          This invoice is a draft in Xero. Approve, send, and record payment
+          there. To change it, void it in Xero and generate a new one here.
+        </p>
+      )}
 
       {/* Lines */}
       <Table>
@@ -134,41 +126,25 @@ export default async function InvoiceDetailPage({
             return (
               <TableRow key={l.id}>
                 <TableCell>{l.description}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {l.source}
-                </TableCell>
+                <TableCell className="text-muted-foreground">{l.source}</TableCell>
                 <TableCell className="text-right">
                   {l.source === "time" ? Number(l.quantity).toFixed(2) : "—"}
                 </TableCell>
-                <TableCell className="text-right">
-                  {formatCents(l.rate)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCents(l.amount)}
-                </TableCell>
+                <TableCell className="text-right">{formatCents(l.rate)}</TableCell>
+                <TableCell className="text-right">{formatCents(l.amount)}</TableCell>
                 {isDraft && canManage && (
                   <TableCell className="text-right">
                     {editable ? (
                       <form action={removeInvoiceLine}>
-                        <input
-                          type="hidden"
-                          name="entityId"
-                          value={active.entityId}
-                        />
-                        <input
-                          type="hidden"
-                          name="invoiceId"
-                          value={invoice.id}
-                        />
+                        <input type="hidden" name="entityId" value={active.entityId} />
+                        <input type="hidden" name="invoiceId" value={invoice.id} />
                         <input type="hidden" name="lineId" value={l.id} />
                         <Button type="submit" variant="ghost" size="sm">
                           Remove
                         </Button>
                       </form>
                     ) : (
-                      <span className="text-muted-foreground text-xs">
-                        locked
-                      </span>
+                      <span className="text-muted-foreground text-xs">locked</span>
                     )}
                   </TableCell>
                 )}
@@ -189,9 +165,7 @@ export default async function InvoiceDetailPage({
               <TableCell colSpan={4} className="text-right">
                 Tax
               </TableCell>
-              <TableCell className="text-right">
-                {formatCents(invoice.tax)}
-              </TableCell>
+              <TableCell className="text-right">{formatCents(invoice.tax)}</TableCell>
               {isDraft && canManage && <TableCell />}
             </TableRow>
           )}
@@ -204,37 +178,15 @@ export default async function InvoiceDetailPage({
             </TableCell>
             {isDraft && canManage && <TableCell />}
           </TableRow>
-          {invoice.amountPaid > 0 && (
-            <>
-              <TableRow>
-                <TableCell colSpan={4} className="text-right">
-                  Paid
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCents(invoice.amountPaid)}
-                </TableCell>
-                {isDraft && canManage && <TableCell />}
-              </TableRow>
-              <TableRow>
-                <TableCell colSpan={4} className="text-right font-semibold">
-                  Balance due
-                </TableCell>
-                <TableCell className="text-right font-semibold">
-                  {formatCents(balance)}
-                </TableCell>
-                {isDraft && canManage && <TableCell />}
-              </TableRow>
-            </>
-          )}
         </TableBody>
       </Table>
 
-      {/* Edit manual/fixed lines (draft only) */}
-      {isDraft && canManage && (
+      {/* Edit manual/fixed lines (draft only, before the Xero push) */}
+      {isDraft && canManage && !inXero && (
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Add a line</CardTitle>
+              <CardTitle>Add a line</CardTitle>
             </CardHeader>
             <CardContent>
               <form action={addInvoiceLine} className="flex flex-col gap-3">
@@ -268,9 +220,7 @@ export default async function InvoiceDetailPage({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="fixed">Fixed fee</SelectItem>
-                        <SelectItem value="manual">
-                          Manual / adjustment
-                        </SelectItem>
+                        <SelectItem value="manual">Manual / adjustment</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -278,176 +228,52 @@ export default async function InvoiceDetailPage({
                 <p className="text-muted-foreground text-xs">
                   Use a negative amount to record a discount.
                 </p>
-                <Button type="submit" className="w-fit">
+                <Button type="submit" variant="outline" className="w-fit">
                   Add line
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Mark as sent</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form action={sendInvoice} className="flex flex-col gap-3">
-                <input type="hidden" name="entityId" value={active.entityId} />
-                <input type="hidden" name="invoiceId" value={invoice.id} />
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="invoiceDate">Invoice date</Label>
-                  <Input
-                    id="invoiceDate"
-                    name="invoiceDate"
-                    type="date"
-                    defaultValue={today}
-                    required
-                  />
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  Sending locks the lines, generates the branded PDF, and starts
-                  the AR clock. Void to make further changes.
-                </p>
-                <Button type="submit" className="w-fit">
-                  Mark sent
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          {lines.some((l) => l.source === "manual" || l.source === "fixed") && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Edit manual lines</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {lines
+                  .filter((l) => l.source === "manual" || l.source === "fixed")
+                  .map((l) => (
+                    <form
+                      key={l.id}
+                      action={updateInvoiceLine}
+                      className="flex flex-wrap items-end gap-2"
+                    >
+                      <input type="hidden" name="entityId" value={active.entityId} />
+                      <input type="hidden" name="invoiceId" value={invoice.id} />
+                      <input type="hidden" name="lineId" value={l.id} />
+                      <div className="flex flex-1 flex-col gap-1">
+                        <Label>Description</Label>
+                        <Input name="description" defaultValue={l.description ?? ""} required />
+                      </div>
+                      <div className="flex w-32 flex-col gap-1">
+                        <Label>Amount ($)</Label>
+                        <Input
+                          name="amount"
+                          inputMode="decimal"
+                          defaultValue={centsToDollars(l.amount)}
+                          required
+                        />
+                      </div>
+                      <Button type="submit" variant="outline" size="sm">
+                        Save
+                      </Button>
+                    </form>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
-      )}
-
-      {/* Edit existing manual/fixed lines inline (draft) */}
-      {isDraft &&
-        canManage &&
-        lines.some((l) => l.source === "manual" || l.source === "fixed") && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Edit manual lines</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {lines
-                .filter((l) => l.source === "manual" || l.source === "fixed")
-                .map((l) => (
-                  <form
-                    key={l.id}
-                    action={updateInvoiceLine}
-                    className="flex flex-wrap items-end gap-2"
-                  >
-                    <input
-                      type="hidden"
-                      name="entityId"
-                      value={active.entityId}
-                    />
-                    <input type="hidden" name="invoiceId" value={invoice.id} />
-                    <input type="hidden" name="lineId" value={l.id} />
-                    <div className="flex flex-1 flex-col gap-1">
-                      <Label className="text-xs">Description</Label>
-                      <Input
-                        name="description"
-                        defaultValue={l.description ?? ""}
-                        required
-                      />
-                    </div>
-                    <div className="flex w-32 flex-col gap-1">
-                      <Label className="text-xs">Amount ($)</Label>
-                      <Input
-                        name="amount"
-                        inputMode="decimal"
-                        defaultValue={centsToDollars(l.amount)}
-                        required
-                      />
-                    </div>
-                    <Button type="submit" variant="outline" size="sm">
-                      Save
-                    </Button>
-                  </form>
-                ))}
-            </CardContent>
-          </Card>
-        )}
-
-      {/* Payments (sent/paid) */}
-      {(isSent || invoice.status === "paid") && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Payments</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-muted-foreground">
-                      No payments recorded.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  payments.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell>{p.paymentDate}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {p.method ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {p.reference ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCents(p.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-
-            {isSent && canManage && (
-              <form
-                action={addPayment}
-                className="flex flex-wrap items-end gap-2"
-              >
-                <input type="hidden" name="entityId" value={active.entityId} />
-                <input type="hidden" name="invoiceId" value={invoice.id} />
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Date</Label>
-                  <Input
-                    name="date"
-                    type="date"
-                    defaultValue={today}
-                    required
-                  />
-                </div>
-                <div className="flex w-32 flex-col gap-1">
-                  <Label className="text-xs">Amount ($)</Label>
-                  <Input
-                    name="amount"
-                    inputMode="decimal"
-                    defaultValue={centsToDollars(balance)}
-                    required
-                  />
-                </div>
-                <div className="flex w-28 flex-col gap-1">
-                  <Label className="text-xs">Method</Label>
-                  <Input name="method" placeholder="ACH, check…" />
-                </div>
-                <div className="flex w-32 flex-col gap-1">
-                  <Label className="text-xs">Reference</Label>
-                  <Input name="reference" placeholder="#1234" />
-                </div>
-                <Button type="submit" size="sm">
-                  Record payment
-                </Button>
-              </form>
-            )}
-          </CardContent>
-        </Card>
       )}
     </div>
   );

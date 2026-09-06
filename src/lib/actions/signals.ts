@@ -3,7 +3,7 @@
 import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { indirectCode, phase, project, resource, signal } from "@/db/schema";
+import { resource, signal } from "@/db/schema";
 import { getEntityRole, MANAGER_ROLES, requireContext } from "@/lib/auth";
 import { deleteRule } from "@/lib/rules-db";
 import {
@@ -143,104 +143,5 @@ export async function deleteSignalRuleAction(formData: FormData): Promise<void> 
   revalidatePath("/connections");
 }
 
-// Demo helper: seed a few sample signals so the flow is usable before any real
-// provider is connected. Replaced by live providers later.
-export async function generateSampleSignals(formData: FormData): Promise<void> {
-  const entityId = String(formData.get("entityId") ?? "");
-  const resourceId = String(formData.get("resourceId") ?? "");
-  const weekStart = String(formData.get("weekStart") ?? "");
-  const { ctx } = await loadResourceAuthorized(entityId, resourceId);
-  const week = getWeek(weekStart);
-
-  const [proj] = await db
-    .select()
-    .from(project)
-    .where(and(eq(project.entityId, entityId), isNull(project.deletedAt)))
-    .limit(1);
-  const [ph] = proj
-    ? await db
-        .select()
-        .from(phase)
-        .where(and(eq(phase.projectId, proj.id), isNull(phase.deletedAt)))
-        .limit(1)
-    : [];
-  const [ind] = await db
-    .select()
-    .from(indirectCode)
-    .where(
-      and(
-        eq(indirectCode.entityId, entityId),
-        eq(indirectCode.active, true),
-        isNull(indirectCode.deletedAt),
-      ),
-    )
-    .limit(1);
-
-  if (!proj || !ph) {
-    throw new Error(
-      "Create a project with at least one phase first so sample signals have something to charge to.",
-    );
-  }
-
-  const base = {
-    organizationId: ctx.appUser.organizationId,
-    entityId,
-    resourceId,
-    provider: "outlook",
-    state: "open" as const,
-    createdBy: ctx.appUser.id,
-    updatedBy: ctx.appUser.id,
-  };
-
-  const rows: (typeof signal.$inferInsert)[] = [
-    {
-      ...base,
-      workDate: week.days[0],
-      externalId: `sample-${week.start}-1`,
-      evidence: `Design review · ${proj.name}`,
-      provenance: `${week.days[0]} · 1h 30m in meeting`,
-      chargeType: "project" as const,
-      projectId: proj.id,
-      phaseId: ph.id,
-      indirectCodeId: null,
-      proposedHours: "1.50",
-      confidence: "high" as const,
-      billable: true,
-    },
-    {
-      ...base,
-      provider: "linear",
-      workDate: week.days[1],
-      externalId: `sample-${week.start}-2`,
-      evidence: `8 issues progressed in ${proj.code}`,
-      provenance: `${week.days[1]} · dev activity`,
-      chargeType: "project" as const,
-      projectId: proj.id,
-      phaseId: ph.id,
-      indirectCodeId: null,
-      proposedHours: "3.00",
-      confidence: "med" as const,
-      billable: true,
-    },
-  ];
-
-  if (ind) {
-    rows.push({
-      ...base,
-      workDate: week.days[2],
-      externalId: `sample-${week.start}-3`,
-      evidence: "Team standup and 1:1s",
-      provenance: `${week.days[2]} · meetings`,
-      chargeType: "indirect" as const,
-      projectId: null,
-      phaseId: null,
-      indirectCodeId: ind.id,
-      proposedHours: "1.00",
-      confidence: "high" as const,
-      billable: false,
-    });
-  }
-
-  await db.insert(signal).values(rows).onConflictDoNothing();
-  revalidatePath("/timesheet");
-}
+// (The pre-launch "generate sample signals" demo helper was removed once live
+// capture shipped; drafts now come only from real activity.)

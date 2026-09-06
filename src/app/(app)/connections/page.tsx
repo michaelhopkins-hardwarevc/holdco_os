@@ -22,7 +22,15 @@ import { deleteSignalRuleAction } from "@/lib/actions/signals";
 import { ADMIN_ROLES, MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
 import { getOutlookConnection } from "@/lib/integrations/outlook-store";
 import { getXeroConnection } from "@/lib/integrations/xero-store";
-import { getResourceForUser, listSignalRules } from "@/lib/queries";
+import {
+  getResourceForUser,
+  listSignalRules,
+  sourceStats,
+} from "@/lib/queries";
+
+function when(d: Date | null | undefined): string {
+  return d ? d.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "never";
+}
 
 export default async function ConnectionsPage({
   searchParams,
@@ -36,21 +44,48 @@ export default async function ConnectionsPage({
   const isAdmin = ADMIN_ROLES.includes(active.role);
   const xeroConn = isAdmin ? await getXeroConnection(active.entityId) : null;
 
-  const rules = await runWithUser(ctx.authUser.id, async (tx) => {
-    const [res] = await getResourceForUser(tx, active.entityId, ctx.appUser.id);
-    return res ? await listSignalRules(tx, active.entityId, res.id) : [];
-  });
-
   const canSync = MANAGER_ROLES.includes(active.role);
+  const { rules, stats } = await runWithUser(ctx.authUser.id, async (tx) => {
+    const [res] = await getResourceForUser(tx, active.entityId, ctx.appUser.id);
+    return {
+      rules: res ? await listSignalRules(tx, active.entityId, res.id) : [],
+      stats: canSync ? await sourceStats(tx, active.entityId) : [],
+    };
+  });
+  const statFor = (s: string) => stats.find((x) => x.sourceSystem === s);
+  const sources = [
+    {
+      key: "monday",
+      name: "Monday",
+      what: "board activity by our people (projects master)",
+      configured: Boolean(process.env.MONDAY_API_TOKEN),
+      envVar: "MONDAY_API_TOKEN",
+    },
+    {
+      key: "hubspot",
+      name: "HubSpot",
+      what: "notes, calls and meetings on deals (customer master)",
+      configured: Boolean(process.env.HUBSPOT_SERVICE_KEY),
+      envVar: "HUBSPOT_SERVICE_KEY",
+    },
+    {
+      key: "microsoft",
+      name: "Microsoft 365",
+      what: "sent mail and calendar from every connected mailbox",
+      configured: connected,
+      envVar: null,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Connections</h1>
         <p className="text-muted-foreground max-w-prose">
-          Connect your calendar so the timesheet can propose hours from your
-          meetings. Access is read-only, per person, and only you see your own
-          signals. Nothing posts to a timesheet without you accepting it.
+          Where work signal comes from. Connect your Microsoft 365 mailbox so
+          your sent mail and meetings draft your time; Monday and HubSpot feed
+          the whole firm. Everything is read-only. Only you see your own drafts,
+          and nothing posts to a timesheet until you confirm it.
         </p>
       </div>
 
@@ -141,6 +176,60 @@ export default async function ConnectionsPage({
               Reads only. Nothing posts to a timesheet automatically.
             </span>
             <SyncNow entityId={active.entityId} />
+          </CardContent>
+        </Card>
+      )}
+
+      {canSync && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sources</CardTitle>
+            <CardDescription>
+              Where work signal comes from, and whether each source is healthy.
+              Monday and HubSpot are firm-wide keys set by an admin in the
+              hosting environment; Microsoft 365 is per person.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Reads</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Events</TableHead>
+                  <TableHead className="text-right">Unresolved</TableHead>
+                  <TableHead>Last captured</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sources.map((s) => {
+                  const st = statFor(s.key);
+                  return (
+                    <TableRow key={s.key}>
+                      <TableCell>{s.name}</TableCell>
+                      <TableCell className="text-alum-2">{s.what}</TableCell>
+                      <TableCell className="font-mono text-[11px] uppercase">
+                        {s.configured ? (
+                          <span className="text-cyan">connected</span>
+                        ) : (
+                          <span className="text-blaze">
+                            {s.envVar ? `set ${s.envVar}` : "not connected"}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{st?.n ?? 0}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {st?.unresolved ?? 0}
+                      </TableCell>
+                      <TableCell className="text-alum-2 font-mono text-[11px]">
+                        {when(st?.lastCaptured)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}

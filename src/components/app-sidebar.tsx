@@ -15,10 +15,11 @@ const NAV: { label: string; href: string }[] = [
   { label: "Projects", href: "/projects" },
   { label: "Invoices", href: "/invoices" },
   { label: "Reports", href: "/reports" },
+  { label: "Queue", href: "/queue" },
   { label: "Clients", href: "/clients" },
   { label: "Resources", href: "/resources" },
   { label: "Indirect codes", href: "/indirect-codes" },
-  { label: "Import", href: "/import" },
+  { label: "Crosswalks", href: "/crosswalks" },
   { label: "Connections", href: "/connections" },
   { label: "Entities", href: "/entities" },
 ];

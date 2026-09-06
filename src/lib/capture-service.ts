@@ -35,19 +35,20 @@ export type SyncEntityResult = SyncResult & { drafted: EntityDraftSummary };
 // and by the "Sync now" action (actorId = the manager who clicked).
 
 const INTERNAL_DOMAINS = ["brooksstevens.com"];
-const WINDOW_DAYS = 2;
+// Look back a full week: capture is idempotent and Draft never touches a block
+// the person confirmed or dismissed, so a wide window costs nothing and means a
+// missed cron run, a late-synced mailbox, or a re-mapped crosswalk still lands.
+const WINDOW_DAYS = 7;
 
-export async function syncEntity(opts?: {
-  entityId?: string;
+export async function syncEntity(opts: {
+  entityId: string;
   actorId?: string | null;
 }): Promise<SyncEntityResult> {
-  const [ent] = opts?.entityId
-    ? await db
-        .select()
-        .from(entity)
-        .where(eq(entity.id, opts.entityId))
-        .limit(1)
-    : await db.select().from(entity).where(isNull(entity.deletedAt)).limit(1);
+  const [ent] = await db
+    .select()
+    .from(entity)
+    .where(and(eq(entity.id, opts.entityId), isNull(entity.deletedAt)))
+    .limit(1);
   if (!ent) throw new Error("No entity to sync.");
 
   // Monday: our people's user ids, so we capture their activity across ALL
@@ -86,7 +87,7 @@ export async function syncEntity(opts?: {
     }));
 
   const window = pickWindow(Date.now(), WINDOW_DAYS);
-  const actor = { orgId: ent.organizationId, actorId: opts?.actorId ?? null };
+  const actor = { orgId: ent.organizationId, actorId: opts.actorId ?? null };
 
   const fetchers = assembleFetchers({
     window,
@@ -106,6 +107,33 @@ export async function syncEntity(opts?: {
   });
 
   return { ...capture, drafted };
+}
+
+export type SyncAllResult = {
+  entities: { entityId: string; name: string; result?: SyncEntityResult; error?: string }[];
+};
+
+/** The nightly run: every live entity, each isolated so one failure never
+ *  blocks the others. */
+export async function syncAllEntities(): Promise<SyncAllResult> {
+  const ents = await db
+    .select({ id: entity.id, name: entity.name })
+    .from(entity)
+    .where(isNull(entity.deletedAt));
+  const out: SyncAllResult = { entities: [] };
+  for (const e of ents) {
+    try {
+      const result = await syncEntity({ entityId: e.id, actorId: null });
+      out.entities.push({ entityId: e.id, name: e.name, result });
+    } catch (err) {
+      out.entities.push({
+        entityId: e.id,
+        name: e.name,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return out;
 }
 
 /**

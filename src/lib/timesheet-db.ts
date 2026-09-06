@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { auditLog, timeEntry } from "@/db/schema";
 import type { QueryDb } from "@/lib/queries";
 import {
@@ -53,7 +53,7 @@ export async function applyTimesheet(
       ),
     );
 
-  if (!existing.every((e) => e.status === "draft")) {
+  if (existing.some((e) => e.status === "submitted" || e.status === "invoiced")) {
     throw new TimesheetLockedError();
   }
 
@@ -136,8 +136,10 @@ export async function applyTimesheet(
     }
   }
 
+  // Cells the grid no longer sends are removed, but only drafts: confirmed
+  // (approved) time is not silently dropped by a grid save.
   for (const [key, e] of existingByKey) {
-    if (!seen.has(key)) {
+    if (!seen.has(key) && e.status === "draft") {
       await db
         .update(timeEntry)
         .set({ deletedAt: new Date(), updatedBy: actor.actorId })
@@ -176,7 +178,9 @@ export async function addSingleEntry(
         isNull(timeEntry.deletedAt),
       ),
     );
-  if (!weekEntries.every((e) => e.status === "draft")) {
+  if (
+    weekEntries.some((e) => e.status === "submitted" || e.status === "invoiced")
+  ) {
     throw new TimesheetLockedError();
   }
   if (!(params.hours > 0)) return;
@@ -191,7 +195,7 @@ export async function addSingleEntry(
       and(
         eq(timeEntry.resourceId, params.resourceId),
         eq(timeEntry.workDate, params.date),
-        eq(timeEntry.status, "draft"),
+        inArray(timeEntry.status, ["draft", "approved"]),
         isNull(timeEntry.deletedAt),
       ),
     );
@@ -277,6 +281,10 @@ export async function transitionTimesheetWeek(
   note: string | null,
 ): Promise<number> {
   const week = getWeek(weekStart);
+  // Approve moves submitted time on; a send-back (reject) can also reopen
+  // confirmed (approved) time from the manager's exception review.
+  const from: ("submitted" | "approved")[] =
+    action === "reject" ? ["submitted", "approved"] : ["submitted"];
   const affected = await db
     .update(timeEntry)
     .set({ status: to, updatedBy: actor.actorId })
@@ -286,7 +294,7 @@ export async function transitionTimesheetWeek(
         eq(timeEntry.resourceId, resourceId),
         gte(timeEntry.workDate, week.start),
         lte(timeEntry.workDate, week.end),
-        eq(timeEntry.status, "submitted"),
+        inArray(timeEntry.status, from),
         isNull(timeEntry.deletedAt),
       ),
     )
@@ -299,7 +307,7 @@ export async function transitionTimesheetWeek(
     recordId: resourceId,
     action,
     actorId: actor.actorId,
-    before: { status: "submitted", weekStart },
+    before: { status: from.join("|"), weekStart },
     after: { status: to, weekStart, entries: affected.length, note },
   });
 

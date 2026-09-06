@@ -1,7 +1,14 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { activityEvent, project, signalRule, sourceSystem } from "@/db/schema";
+import {
+  activityEvent,
+  project,
+  resource,
+  signalRule,
+  sourceConnection,
+  sourceSystem,
+} from "@/db/schema";
 import { loadCrosswalks } from "@/lib/crosswalk-db";
-import { resolveEvent } from "@/lib/crosswalk-map";
+import { type PersonCrosswalk, resolveEvent } from "@/lib/crosswalk-map";
 import type { RawActivity } from "@/lib/integrations/capture";
 import type { QueryDb } from "@/lib/queries";
 import {
@@ -9,6 +16,47 @@ import {
   type ProjectRef,
   type RuleCharge,
 } from "@/lib/signals-map";
+import { sourceRefOf } from "@/lib/source-ref";
+
+/**
+ * Microsoft identities need no hand-loaded crosswalk: a connected Outlook
+ * mailbox already knows its Entra object id and the app user who owns it, and
+ * that user's resource is the person. Returns synthetic person crosswalks for
+ * every connected mailbox in the entity, used as a fallback after the real rows.
+ */
+export async function outlookPersonFallbacks(
+  db: QueryDb,
+  entityId: string,
+): Promise<PersonCrosswalk[]> {
+  const rows = await db
+    .select({
+      entraId: sourceConnection.externalAccountId,
+      resourceId: resource.id,
+    })
+    .from(sourceConnection)
+    .innerJoin(
+      resource,
+      and(
+        eq(resource.userId, sourceConnection.userId),
+        eq(resource.entityId, sourceConnection.entityId),
+        isNull(resource.deletedAt),
+      ),
+    )
+    .where(
+      and(
+        eq(sourceConnection.entityId, entityId),
+        eq(sourceConnection.provider, "outlook"),
+        isNull(sourceConnection.deletedAt),
+      ),
+    );
+  return rows
+    .filter((r): r is { entraId: string; resourceId: string } => !!r.entraId)
+    .map((r) => ({
+      sourceSystem: "microsoft",
+      sourceUserId: r.entraId,
+      resourceId: r.resourceId,
+    }));
+}
 
 // Capture can run unattended (the daily cron has no signed-in user), so the
 // actor id may be null. Otherwise it's the user who triggered "Sync now".
@@ -50,6 +98,11 @@ export async function captureActivities(
   if (raws.length === 0) return summary;
 
   const xwalks = await loadCrosswalks(db, entityId);
+  // Real crosswalk rows win; connected mailboxes fill in Microsoft identities.
+  xwalks.persons = [
+    ...xwalks.persons,
+    ...(await outlookPersonFallbacks(db, entityId)),
+  ];
 
   // For subject->project matching (calendar meetings and other titled events
   // with no hard id): the entity's projects and each resource's learned rules.
@@ -119,6 +172,10 @@ export async function captureActivities(
     }
 
     const resolved = projectId !== null || clientId !== null;
+    const endedAt = raw.endedAt ? new Date(raw.endedAt) : null;
+    const subject = raw.subject ?? null;
+    const counterparty = raw.senderDomain ?? raw.counterpartyName ?? null;
+    const sourceRef = sourceRefOf(raw);
 
     await db
       .insert(activityEvent)
@@ -131,8 +188,12 @@ export async function captureActivities(
         sourceEventId: raw.sourceEventId,
         eventType: raw.eventType,
         occurredAt: new Date(raw.occurredAt),
+        endedAt,
         hardness: raw.hardness,
         rawPayload: raw.raw,
+        subject,
+        counterparty,
+        sourceRef,
         resolvedProjectId: projectId,
         resolvedClientId: clientId,
         resolutionConfidence: resolved ? confidence : null,
@@ -150,8 +211,12 @@ export async function captureActivities(
           personId: base.resourceId,
           eventType: raw.eventType,
           occurredAt: new Date(raw.occurredAt),
+          endedAt,
           hardness: raw.hardness,
           rawPayload: raw.raw,
+          subject,
+          counterparty,
+          sourceRef,
           resolvedProjectId: projectId,
           resolvedClientId: clientId,
           resolutionConfidence: resolved ? confidence : null,

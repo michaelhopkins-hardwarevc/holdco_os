@@ -2,6 +2,68 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-09-05 — Re-plan: the app is the time-and-effort ledger between the work and the books
+
+Full review of the record and the code (State of Record 11 Aug, Rev 2, the WIS
+design, the cutover runbook) against the operator objective: minimise dual
+entry by using the master records (where the work is done and communicated) as
+the indicator of value, translated into time and then invoicing. WIS is that
+architecture; Phase 1 left a second, manual product alongside it and nobody had
+said which one the firm uses. Operator decisions, recorded here:
+
+- **Xero owns the invoice.** The app assembles confirmed billable time into a
+  draft and pushes it to Xero. Approval, sending, payments and AR aging happen
+  in Xero. The app's PDF, mark-sent, payments and AR screens are removed from
+  the UI (code and tables kept; nothing deleted). A successful push sets the
+  app invoice to `sent` (handed to the books) and stamps the date.
+- **The weekly Signals panel stays the confirm surface** (not a daily card).
+- **Confirmed = approved.** Accepting a drafted block writes an `approved`
+  time_entry and an audit `confirm`. A week is locked only by `submitted` or
+  `invoiced` time; approved time never locks it, and a grid save never deletes
+  approved cells. Approvals became the manager's exception review: submitted
+  weeks always, confirmed weeks only when a rule fires (under 40h, over 45h,
+  gap day, low utilization). Send-back reopens approved time too.
+- **The value/delegation model stays out of the app for now.**
+
+Engineering changes that make the loop real (Phase A):
+
+- **Microsoft identities resolve without hand-loaded ids.** Root cause of
+  "Outlook pulls nothing": crosswalk_person had Monday/HubSpot ids only, so
+  every Graph event had no person and was never drafted. Now the Outlook
+  callback writes the Entra id into crosswalk_person, and capture also falls
+  back to any connected mailbox (`outlookPersonFallbacks`). Sent mail keeps its
+  subject; calendar keeps its real end (`activity_event.ended_at`).
+- **Every event carries a `source_ref`** ("monday_board:123",
+  "hubspot_deal:456", "sharepoint:/x", "email_domain:acme.com"), the strongest
+  hint it had. Draft rolls a block's refs into `signal.learn_hints`.
+- **Tap once, never asks twice** (the WIS queue, finally built). `learn-db.ts`
+  turns a confirm-time correction or a queue mapping into a crosswalk row and
+  re-resolves every unresolved event carrying that ref. Existing mappings are
+  never overwritten silently (the row is skipped and stays reviewable on
+  /crosswalks). Activity drafts no longer write subject rules (they collapsed
+  into one junk rule per person); titled single-source signals still do.
+- **Draft guardrails.** Real meeting duration; a 12h/day ceiling with
+  proportional scale-down; a plain-language evidence line ("2 emails to
+  acme.com · 1 Monday update · "Handlebar drawings v3""); every event linked to
+  its block (`activity_event.signal_id`); events already in a confirmed or
+  dismissed block are never re-drafted, so re-syncs cannot double count or
+  resurrect a skip; unresolved blocks key on their strongest hint so several
+  can coexist in a day.
+- **Sync covers every entity and looks back 7 days** (idempotent capture plus
+  the re-draft guard make a wide window free). The cron reports per-entity
+  outcomes; one failure never blocks the others.
+- **Screens:** /queue (unmapped sources with one-tap mapping, blocks waiting
+  for a charge), /crosswalks (review and manual edit), Connections gains a
+  source-health table (Monday, HubSpot, Microsoft 365: connected?, events,
+  unresolved, last captured). The sample-signals demo is gone; Import is off
+  the nav (still reachable, one-time tool).
+- **Backfill of the undocumented milestones (M2, M3, M4):** M2 Draft landed
+  9 Aug (clustering, boundary rule, hours, persisted as signals inside the
+  sync). There was no M3 commit because the Signals confirm loop from 2 to 3 Aug
+  already served as Confirm; this re-plan makes that explicit and finishes it.
+  M4 Xero export landed 9 to 10 Aug (adapter, reconciliation, OAuth, scope
+  fixes).
+
 ## 2026-08-09 — Integration write-back posture (future phase, not built yet)
 
 Recorded now so the boundary is deliberate when we get there. Today every

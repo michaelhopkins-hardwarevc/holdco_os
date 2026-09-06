@@ -17,7 +17,6 @@ import {
   acceptSignalAction,
   dismissAllSignalsAction,
   dismissSignalAction,
-  generateSampleSignals,
 } from "@/lib/actions/signals";
 import { addTimeEntry, submitWeek } from "@/lib/actions/timesheet";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
@@ -390,19 +389,13 @@ export default async function TimesheetPage({
           {signals.length === 0 ? (
             <div className="flex flex-col items-start gap-3 px-4 py-4">
               <p className="text-muted-foreground text-sm">
-                No signals yet. Once your calendar and tools are connected,
-                proposed hours show up here to accept or skip — nothing posts
-                without you accepting it. For now, generate a few samples to try
-                the flow.
+                Nothing proposed for this week yet. Proposed hours come from
+                your sent mail, calendar, Monday and HubSpot activity; confirm
+                or skip each one. Nothing posts without you confirming it.
+                {outlookConnected
+                  ? " Use Refresh from Outlook to pull this week now."
+                  : " Connect Outlook on the Connections page to start."}
               </p>
-              <form action={generateSampleSignals}>
-                <input type="hidden" name="entityId" value={active.entityId} />
-                <input type="hidden" name="resourceId" value={res.id} />
-                <input type="hidden" name="weekStart" value={week.start} />
-                <Button type="submit" variant="outline" size="sm">
-                  Generate sample signals
-                </Button>
-              </form>
             </div>
           ) : (
             signals.map((s) => (

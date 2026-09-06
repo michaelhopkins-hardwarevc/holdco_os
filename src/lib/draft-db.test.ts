@@ -146,6 +146,96 @@ describe("draftSignalsForResource", () => {
   });
 });
 
+describe("draftSignalsForResource — links and guardrails", () => {
+  it("links every event to the block it was drafted into", async () => {
+    const { ent, res, proj, actor, ev } = await setup();
+    await ev({ id: "a", at: "2026-07-27T09:00:00Z", projectId: proj.id });
+    await ev({ id: "b", at: "2026-07-27T09:30:00Z", projectId: proj.id });
+    await draftSignalsForResource(db, actor, ent.id, res.id, RANGE);
+
+    const [sig] = await db
+      .select()
+      .from(signal)
+      .where(and(eq(signal.resourceId, res.id), eq(signal.provider, "activity")));
+    const events = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.personId, res.id));
+    expect(events).toHaveLength(2);
+    expect(events.every((e) => e.signalId === sig.id)).toBe(true);
+  });
+
+  it("never re-drafts events already folded into a confirmed block (no double count)", async () => {
+    const { ent, res, proj, actor, ev } = await setup();
+    await ev({ id: "a", at: "2026-07-27T09:00:00Z", projectId: proj.id });
+    await draftSignalsForResource(db, actor, ent.id, res.id, RANGE);
+    // Person confirms it.
+    await db
+      .update(signal)
+      .set({ state: "accepted" })
+      .where(and(eq(signal.resourceId, res.id), eq(signal.provider, "activity")));
+
+    // Later the crosswalks change and the same event would key differently
+    // (e.g. it now resolves to another project). It must not draft again.
+    await db
+      .update(activityEvent)
+      .set({ resolvedProjectId: null })
+      .where(eq(activityEvent.sourceEventId, "a"));
+    const summary = await draftSignalsForResource(db, actor, ent.id, res.id, RANGE);
+    expect(summary.blocks).toBe(0);
+
+    const signals = await db
+      .select()
+      .from(signal)
+      .where(and(eq(signal.resourceId, res.id), eq(signal.provider, "activity")));
+    expect(signals).toHaveLength(1);
+    expect(signals[0].state).toBe("accepted");
+  });
+
+  it("keeps two unresolved blocks in one day apart (distinct keys)", async () => {
+    const { ent, res, actor, ev } = await setup();
+    // Two different unlinked sources, hours apart -> two unresolved blocks.
+    await db
+      .insert(activityEvent)
+      .values({
+        organizationId: ent.organizationId,
+        entityId: ent.id,
+        personId: res.id,
+        sourceSystem: "monday",
+        sourceEventId: "u1",
+        eventType: "monday_status",
+        occurredAt: new Date("2026-07-27T09:00:00Z"),
+        hardness: "hard",
+        sourceRef: "monday_board:111",
+      });
+    await db
+      .insert(activityEvent)
+      .values({
+        organizationId: ent.organizationId,
+        entityId: ent.id,
+        personId: res.id,
+        sourceSystem: "monday",
+        sourceEventId: "u2",
+        eventType: "monday_status",
+        occurredAt: new Date("2026-07-27T15:00:00Z"),
+        hardness: "hard",
+        sourceRef: "monday_board:222",
+      });
+    void ev;
+    const summary = await draftSignalsForResource(db, actor, ent.id, res.id, RANGE);
+    expect(summary.unresolved).toBe(2);
+    const signals = await db
+      .select()
+      .from(signal)
+      .where(and(eq(signal.resourceId, res.id), eq(signal.provider, "activity")));
+    expect(signals).toHaveLength(2);
+    expect(signals.map((s) => s.learnHints)).toEqual(
+      expect.arrayContaining([["monday_board:111"], ["monday_board:222"]]),
+    );
+    expect(signals.every((s) => s.evidence.startsWith("Pick a charge"))).toBe(true);
+  });
+});
+
 describe("draftForEntity", () => {
   it("drafts for every resource with captured activity in the window", async () => {
     await seed(db);

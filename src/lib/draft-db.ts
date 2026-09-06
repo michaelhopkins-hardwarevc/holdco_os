@@ -1,17 +1,20 @@
-import { and, eq, gte, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { activityEvent, signal } from "@/db/schema";
 import type { CaptureActor } from "@/lib/capture-db";
-import { draftBlocks, type DraftInputEvent } from "@/lib/draft";
+import { describeHints, draftBlocks, type DraftInputEvent } from "@/lib/draft";
 import type { QueryDb } from "@/lib/queries";
 
 // Persist the Draft stage: cluster a resource's captured activity_events into
 // work blocks and upsert them as `signal` rows, so they surface on the existing
 // timesheet confirm surface. Resolved blocks arrive pre-charged to a project;
 // unresolved blocks arrive with no charge for the person to link (which the
-// confirm flow then remembers as a rule). Additive — never writes a time_entry.
+// confirm flow then turns into a crosswalk rule). Additive: never writes a
+// time_entry.
 //
-// Idempotent per (resource, day, project): re-drafting refreshes an open draft
-// in place; it never touches a signal the person already accepted or dismissed.
+// Guardrails: an event already folded into a block the person confirmed or
+// dismissed is never re-drafted (no double counting, no resurrecting a skip);
+// every drafted block links back to its events (activity_event.signal_id), so
+// evidence is auditable and corrections can learn from the sources behind it.
 
 export type DraftSummary = {
   blocks: number;
@@ -27,16 +30,23 @@ export async function draftSignalsForResource(
   resourceId: string,
   range: { start: string; end: string },
 ): Promise<DraftSummary> {
-  const events = await db
+  const rows = await db
     .select({
       id: activityEvent.id,
       occurredAt: activityEvent.occurredAt,
+      endedAt: activityEvent.endedAt,
       hardness: activityEvent.hardness,
       resolvedProjectId: activityEvent.resolvedProjectId,
       resolvedClientId: activityEvent.resolvedClientId,
       resolutionConfidence: activityEvent.resolutionConfidence,
+      eventType: activityEvent.eventType,
+      subject: activityEvent.subject,
+      counterparty: activityEvent.counterparty,
+      sourceRef: activityEvent.sourceRef,
+      linkedState: signal.state,
     })
     .from(activityEvent)
+    .leftJoin(signal, eq(signal.id, activityEvent.signalId))
     .where(
       and(
         eq(activityEvent.entityId, entityId),
@@ -47,14 +57,22 @@ export async function draftSignalsForResource(
       ),
     );
 
-  const input: DraftInputEvent[] = events.map((e) => ({
-    id: e.id,
-    occurredAt: e.occurredAt.toISOString(),
-    hardness: e.hardness,
-    resolvedProjectId: e.resolvedProjectId,
-    resolvedClientId: e.resolvedClientId,
-    resolutionConfidence: e.resolutionConfidence,
-  }));
+  // Never re-draft an event the person already confirmed or skipped.
+  const input: DraftInputEvent[] = rows
+    .filter((r) => r.linkedState !== "accepted" && r.linkedState !== "dismissed")
+    .map((e) => ({
+      id: e.id,
+      occurredAt: e.occurredAt.toISOString(),
+      endedAt: e.endedAt ? e.endedAt.toISOString() : null,
+      hardness: e.hardness,
+      resolvedProjectId: e.resolvedProjectId,
+      resolvedClientId: e.resolvedClientId,
+      resolutionConfidence: e.resolutionConfidence,
+      eventType: e.eventType,
+      subject: e.subject,
+      counterparty: e.counterparty,
+      sourceRef: e.sourceRef,
+    }));
 
   const blocks = draftBlocks(input);
   const summary: DraftSummary = {
@@ -68,14 +86,18 @@ export async function draftSignalsForResource(
     if (resolved) summary.resolved += 1;
     else summary.unresolved += 1;
 
-    // One open draft per (resource, day, project) — stable so re-drafts update
-    // in place rather than duplicating.
-    const externalId = `${b.workDate}:${b.projectId ?? "unresolved"}`;
+    // One open draft per (resource, day, project). Unresolved blocks key on
+    // their strongest hint (or anchor event) so several can coexist in a day.
+    const externalId = resolved
+      ? `${b.workDate}:${b.projectId}`
+      : `${b.workDate}:u:${b.learnHints[0] ?? b.anchorEventId}`;
+    const hintLabel = b.learnHints.length ? ` · ${describeHints(b.learnHints)}` : "";
     const evidence = resolved
-      ? `Drafted from ${b.eventIds.length} activity event${b.eventIds.length === 1 ? "" : "s"}`
-      : `${b.eventIds.length} unlinked activity event${b.eventIds.length === 1 ? "" : "s"} — pick a charge`;
+      ? b.evidence
+      : `Pick a charge · ${b.evidence}${hintLabel}`;
+    const provenance = `${b.hours.toFixed(2)} h · ${b.confidence} confidence`;
 
-    await db
+    const [row] = await db
       .insert(signal)
       .values({
         organizationId: actor.orgId,
@@ -85,13 +107,14 @@ export async function draftSignalsForResource(
         provider: "activity",
         externalId,
         evidence,
-        provenance: `${b.hours.toFixed(2)} h · ${b.confidence} confidence`,
+        provenance,
         chargeType: "project",
         projectId: b.projectId,
         proposedHours: b.hours.toFixed(2),
         confidence: b.confidence,
         billable: resolved,
         state: "open",
+        learnHints: b.learnHints,
         createdBy: actor.actorId,
         updatedBy: actor.actorId,
       })
@@ -105,11 +128,23 @@ export async function draftSignalsForResource(
           confidence: b.confidence,
           billable: resolved,
           evidence,
-          provenance: `${b.hours.toFixed(2)} h · ${b.confidence} confidence`,
+          provenance,
+          learnHints: b.learnHints,
           updatedBy: actor.actorId,
           updatedAt: new Date(),
         },
-      });
+      })
+      .returning({ id: signal.id });
+
+    // Link the events to the block they were drafted into (auditable evidence,
+    // and the double-count guard above). No row comes back when the upsert hit
+    // a confirmed/dismissed signal, which keeps those links as they were.
+    if (row) {
+      await db
+        .update(activityEvent)
+        .set({ signalId: row.id })
+        .where(inArray(activityEvent.id, b.eventIds));
+    }
   }
 
   return summary;

@@ -38,6 +38,9 @@ export function graphMailToActivities(
       occurredAt: m.sentDateTime ?? "",
       hardness: "hard",
       senderDomain: counterparty,
+      // Keep the subject: it is the evidence a person sees at confirm time and
+      // it feeds subject->project matching when the crosswalks miss.
+      subject: m.subject?.trim() || null,
       raw: m,
     };
   });

@@ -27,7 +27,7 @@ import { ExportCsvButton } from "@/components/export-csv-button";
 import { runWithUser } from "@/db/rls";
 import { generateInvoice } from "@/lib/actions/invoices";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
-import { computeArAging, computeWip } from "@/lib/invoicing-db";
+import { computeWip } from "@/lib/invoicing-db";
 import { formatCents } from "@/lib/money";
 import { listInvoices, listProjects } from "@/lib/queries";
 
@@ -53,26 +53,25 @@ function StatusBadge({ status }: { status: string }) {
 export default async function InvoicesPage() {
   const { ctx, active } = await requireActiveEntity();
   const canManage = MANAGER_ROLES.includes(active.role);
-  const asOf = new Date().toISOString().slice(0, 10);
-
-  const { invoices, projects, wip, ar } = await runWithUser(
+  const { invoices, projects, wip } = await runWithUser(
     ctx.authUser.id,
     async (tx) => ({
       invoices: await listInvoices(tx, active.entityId),
       projects: await listProjects(tx, active.entityId),
       wip: await computeWip(tx, active.entityId),
-      ar: await computeArAging(tx, active.entityId, asOf),
     }),
   );
+  const pushed = invoices.filter((i) => i.xeroInvoiceId).length;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Invoicing, WIP & AR</h1>
+          <h1 className="text-2xl font-semibold">Invoicing & WIP</h1>
           <p className="text-muted-foreground">
-            {active.entityName} · approved billable time and expenses become
-            invoices. Unbilled value is WIP; sent-and-unpaid invoices are AR.
+            {active.entityName} · confirmed billable time and expenses become a
+            draft here, then go to Xero. Approval, sending, payments and AR
+            live in Xero.
           </p>
         </div>
         <ExportCsvButton type="invoices" entityId={active.entityId} />
@@ -81,37 +80,28 @@ export default async function InvoicesPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Work in progress (WIP)</CardTitle>
+            <CardTitle>Work in progress (WIP)</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-1">
             <div className="text-2xl font-semibold">{formatCents(wip.total)}</div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-muted-foreground text-sm">
               Time {formatCents(wip.time)} · Expenses {formatCents(wip.expense)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Approved, billable, not yet invoiced.
+            <p className="text-muted-foreground text-xs">
+              Confirmed, billable, not yet on an invoice.
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              Accounts receivable (as of {asOf})
-            </CardTitle>
+            <CardTitle>In Xero</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <div className="text-2xl font-semibold">{formatCents(ar.total)}</div>
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
-              {(["0-30", "31-60", "61-90", "90+"] as const).map((b) => (
-                <div key={b} className="rounded border p-1">
-                  <div className="text-muted-foreground">{b}</div>
-                  <div className="font-medium">{formatCents(ar.buckets[b])}</div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Outstanding balance on sent invoices, by days since invoice date.
+          <CardContent className="flex flex-col gap-1">
+            <div className="text-2xl font-semibold">{pushed}</div>
+            <p className="text-muted-foreground text-xs">
+              Invoices pushed as drafts. Open Xero to approve, send, and record
+              payment. Receivables and aging are reported there.
             </p>
           </CardContent>
         </Card>
@@ -125,7 +115,7 @@ export default async function InvoicesPage() {
             <TableHead>Date</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Total</TableHead>
-            <TableHead className="text-right">Balance</TableHead>
+            <TableHead>Xero</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -152,10 +142,8 @@ export default async function InvoicesPage() {
                   <StatusBadge status={i.status} />
                 </TableCell>
                 <TableCell className="text-right">{formatCents(i.total)}</TableCell>
-                <TableCell className="text-right">
-                  {i.status === "void"
-                    ? "—"
-                    : formatCents(i.total - i.amountPaid)}
+                <TableCell className="text-muted-foreground font-mono text-[11px] uppercase">
+                  {i.xeroInvoiceId ? (i.xeroStatus ?? "draft") : "not pushed"}
                 </TableCell>
               </TableRow>
             ))

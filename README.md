@@ -213,3 +213,38 @@ docs/DECISIONS.md  # short notes on non-obvious choices
 
 Non-obvious engineering choices are logged in
 [`docs/DECISIONS.md`](./docs/DECISIONS.md).
+
+## How time reaches Xero now (Sept 2026 re-plan)
+
+HoldCo OS is the time-and-effort ledger between the systems where work happens
+and the books. It reads the master records, proposes, a person confirms, and
+confirmed billable time becomes a draft invoice in Xero.
+
+1. **Capture** runs nightly for every entity (`/api/capture/sync`, Vercel cron)
+   and on demand from Connections → Sync now. Sources: each connected Microsoft
+   365 mailbox (sent mail + calendar), Monday (`MONDAY_API_TOKEN`) and HubSpot
+   (`HUBSPOT_SERVICE_KEY`). Read-only. Looks back 7 days; re-syncs are safe.
+2. **Resolve** attributes each event to a person and a project via the
+   crosswalks (`/crosswalks`). Connecting Outlook registers your Microsoft
+   identity automatically. Anything the crosswalks cannot place shows up in the
+   **Queue** (`/queue`): map it to a project once and every event carrying that
+   source re-files itself, now and in future syncs.
+3. **Draft** turns a person's day into blocks with hours, confidence and an
+   evidence line (never message bodies). A day never drafts past 12 hours, and
+   events already confirmed are never drafted again.
+4. **Confirm** on the weekly Timesheet Signals panel: Log it, or pick another
+   charge, or Skip. Confirming is the approval: the time lands `approved` and is
+   billable at once. Managers review exceptions weekly on Approvals (under 40h,
+   over 45h, a gap day, low utilization) and can send a week back.
+5. **Bill**: Invoices → Generate draft pulls confirmed billable time and
+   expenses for a project and period; Push to Xero sends it as a draft. Approve,
+   send, record payment and age receivables in Xero.
+
+Admin notes:
+
+- The Azure app registration needs `Mail.Read` in addition to `Calendars.Read`.
+  Each person reconnects Outlook once after that permission is added.
+- Migration `0015` adds the columns this loop relies on (`activity_event`
+  ended_at / subject / counterparty / source_ref / signal_id, `signal`
+  learn_hints). Run `npm run db:migrate` against production before deploying.
+- Import (`/import`) is off the nav but still available for one-time loads.

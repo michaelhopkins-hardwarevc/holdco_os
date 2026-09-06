@@ -15,6 +15,9 @@ export type RawActivity = WorkEvent & {
   // email_sent | monday_status | monday_update | hubspot_note | hubspot_call ...
   eventType: string;
   occurredAt: string; // ISO 8601, UTC
+  // Real end time when the source knows it (a calendar meeting). Draft uses it
+  // for true duration instead of inferring from the next event.
+  endedAt?: string | null;
   hardness: Hardness;
   // Free-text subject (e.g. a meeting title), when the source has one. Used by
   // subject->project matching at resolution for sources without a hard id.

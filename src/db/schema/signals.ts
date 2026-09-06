@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -90,6 +91,10 @@ export const signal = pgTable(
     confidence: signalConfidence("confidence").notNull().default("med"),
     billable: boolean("billable").notNull().default(true),
     state: signalState("state").notNull().default("open"),
+    // For activity-drafted blocks: the distinct source_ref tokens of the events
+    // behind it (["monday_board:123", "email_domain:acme.com"]). When a person
+    // confirms the block to a project, these become crosswalk rows.
+    learnHints: jsonb("learn_hints").$type<string[]>(),
     // Set once accepted — the time_entry this signal produced.
     timeEntryId: uuid("time_entry_id").references(() => timeEntry.id),
     ...auditColumns(),

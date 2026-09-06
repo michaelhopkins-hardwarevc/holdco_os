@@ -44,8 +44,22 @@ export const activityEvent = pgTable(
     sourceEventId: text("source_event_id").notNull(),
     eventType: text("event_type").notNull(), // email_sent | monday_status | hubspot_note | ...
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    // When the source knows the real end (a calendar meeting), so Draft can use
+    // true duration instead of inferring it from the gap to the next event.
+    endedAt: timestamp("ended_at", { withTimezone: true }),
     hardness: eventHardness("hardness").notNull(),
     rawPayload: jsonb("raw_payload"),
+    // Human-readable evidence carried onto the drafted block.
+    subject: text("subject"),
+    counterparty: text("counterparty"), // e.g. the external email domain
+    // The strongest external hint this event carried, as one token
+    // ("monday_board:123" | "hubspot_deal:456" | "email_domain:acme.com" |
+    // "sharepoint:/path"). A confirm-time correction maps this token to a
+    // project or client so the same pattern never asks twice.
+    sourceRef: text("source_ref"),
+    // The drafted signal this event was folded into (set by Draft). Plain uuid,
+    // no FK, so an event can outlive a re-drafted signal.
+    signalId: uuid("signal_id"),
     // Resolution attempted at capture time (nullable until/unless it resolves).
     resolvedProjectId: uuid("resolved_project_id").references(() => project.id),
     resolvedClientId: uuid("resolved_client_id").references(() => client.id),

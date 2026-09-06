@@ -15,6 +15,9 @@ export type ApprovalRow = {
   utilPct: number | null;
   targetPct: number | null;
   exceptions: string[];
+  // "submitted" weeks need an approve; "confirmed" weeks are already approved
+  // and appear only because an exception rule fired.
+  kind: "submitted" | "confirmed";
 };
 
 function keyOf(r: ApprovalRow) {
@@ -88,19 +91,23 @@ export function ApprovalsTable({
               return (
                 <tr
                   key={k}
-                  onClick={() => toggle(k)}
-                  className={`cursor-pointer border-b border-dashed border-line transition-colors ${
-                    isSel ? "bg-acid/[0.035]" : "hover:bg-steel/40"
-                  }`}
+                  onClick={() => r.kind === "submitted" && toggle(k)}
+                  className={`border-b border-dashed border-line transition-colors ${
+                    r.kind === "submitted" ? "cursor-pointer" : ""
+                  } ${isSel ? "bg-acid/[0.035]" : "hover:bg-steel/40"}`}
                 >
                   <td className="px-3 py-3">
-                    <span
-                      className={`flex h-[15px] w-[15px] items-center justify-center rounded-[4px] text-[10px] ${
-                        isSel ? "bg-acid text-carbon" : "border border-line"
-                      }`}
-                    >
-                      {isSel ? "✓" : ""}
-                    </span>
+                    {r.kind === "submitted" ? (
+                      <span
+                        className={`flex h-[15px] w-[15px] items-center justify-center rounded-[4px] text-[10px] ${
+                          isSel ? "bg-acid text-carbon" : "border border-line"
+                        }`}
+                      >
+                        {isSel ? "✓" : ""}
+                      </span>
+                    ) : (
+                      <span className="text-alum-2 font-mono text-[9.5px] uppercase">ok</span>
+                    )}
                   </td>
                   <td className="px-3 py-3">
                     <div className="text-[14px] text-bone">{r.resourceName}</div>
@@ -132,6 +139,7 @@ export function ApprovalsTable({
                   </td>
                   <td className="px-3 py-3 font-mono text-[10.5px] tracking-[0.1em] uppercase">
                     <span className={review ? "text-blaze" : "text-alum-2"}>
+                      {r.kind === "confirmed" ? "confirmed · " : "awaiting · "}
                       {review ? "review" : "clean"}
                     </span>
                   </td>

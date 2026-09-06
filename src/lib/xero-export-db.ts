@@ -45,6 +45,7 @@ export async function exportInvoiceToXero(
   if (inv.xeroInvoiceId) {
     return { externalId: inv.xeroInvoiceId, status: inv.xeroStatus ?? "DRAFT" };
   }
+  if (inv.status === "void") throw new Error("A void invoice cannot be pushed.");
 
   const [cli] = await db
     .select({ name: client.name })
@@ -59,6 +60,7 @@ export async function exportInvoiceToXero(
       and(eq(invoiceLine.invoiceId, invoiceId), isNull(invoiceLine.deletedAt)),
     )
     .orderBy(invoiceLine.sortOrder);
+  if (lines.length === 0) throw new Error("The invoice has no lines to push.");
 
   // Tracking option comes from the invoice's project crosswalk, if any.
   let trackingOption: string | null = null;
@@ -97,11 +99,15 @@ export async function exportInvoiceToXero(
 
   const result = await provider.createDraftInvoice(draft);
 
+  // Once in Xero the app's copy is closed to edits ("sent" here means handed
+  // to the books; approval, sending and payment happen in Xero).
   await db
     .update(invoice)
     .set({
       xeroInvoiceId: result.externalId,
       xeroStatus: result.status,
+      status: "sent",
+      invoiceDate: inv.invoiceDate ?? new Date().toISOString().slice(0, 10),
       updatedBy: actor.actorId,
     })
     .where(eq(invoice.id, invoiceId));

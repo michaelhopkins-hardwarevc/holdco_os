@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { resolveActiveEntity } from "@/lib/active-entity";
 import { getContext } from "@/lib/auth";
 import { outlookProvider } from "@/lib/integrations/outlook";
-import { upsertOutlookConnection } from "@/lib/integrations/outlook-store";
+import {
+  linkOutlookIdentity,
+  upsertOutlookConnection,
+} from "@/lib/integrations/outlook-store";
 
 // Complete the Outlook consent flow: exchange the code and store the (encrypted)
 // tokens against the current user + active entity.
@@ -36,6 +39,13 @@ export async function GET(request: NextRequest) {
       userId: ctx.appUser.id,
       account,
       tokens,
+    });
+    // The mailbox's Entra id is this person's Microsoft identity for capture.
+    await linkOutlookIdentity({
+      orgId: ctx.appUser.organizationId,
+      entityId: active.entityId,
+      userId: ctx.appUser.id,
+      entraId: account.id,
     });
     return NextResponse.redirect(new URL("/connections?connected=1", request.url));
   } catch {

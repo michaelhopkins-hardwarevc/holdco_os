@@ -20,6 +20,8 @@ export function calendarToActivities(
       sourceEventId: e.id,
       eventType: "calendar_meeting",
       occurredAt: e.startISO,
+      // A meeting's real end: Draft uses it for true duration.
+      endedAt: e.endISO,
       hardness: "hard",
       subject: e.subject?.trim() || null,
       raw: e,

@@ -112,6 +112,72 @@ describe("draftBlocks — confidence + anchor", () => {
   });
 });
 
+describe("draftBlocks — guardrails and evidence", () => {
+  it("uses a meeting's real end instead of inferring from the next event", () => {
+    const blocks = draftBlocks([
+      ev({
+        id: "m",
+        occurredAt: "2026-07-27T09:00:00Z",
+        endedAt: "2026-07-27T10:30:00Z",
+        eventType: "calendar_meeting",
+        subject: "Handlebar review",
+      }),
+    ]);
+    // A lone meeting with a known end spans exactly its duration, no +0.5h.
+    expect(blocks[0].hours).toBe(1.5);
+    expect(blocks[0].endAt).toBe("2026-07-27T10:30:00.000Z");
+  });
+
+  it("never drafts a day past maxDayHours; blocks scale down proportionally", () => {
+    const blocks = draftBlocks(
+      [
+        ev({ id: "a", occurredAt: "2026-07-27T06:00:00Z" }),
+        ev({ id: "b", occurredAt: "2026-07-27T14:00:00Z", resolvedProjectId: "p2" }),
+        ev({ id: "c", occurredAt: "2026-07-27T22:00:00Z", resolvedProjectId: "p3" }),
+      ],
+      { maxFillHours: 8, maxDayHours: 12 },
+    );
+    const total = blocks.reduce((s, b) => s + b.hours, 0);
+    expect(total).toBeLessThanOrEqual(12);
+    expect(blocks.every((b) => b.hours >= 0.25)).toBe(true);
+  });
+
+  it("composes a plain-language evidence line and collects learn hints", () => {
+    const blocks = draftBlocks([
+      ev({
+        id: "e1",
+        occurredAt: "2026-07-27T09:00:00Z",
+        eventType: "email_sent",
+        counterparty: "acme.com",
+        sourceRef: "email_domain:acme.com",
+        subject: "Handlebar drawings v3",
+      }),
+      ev({
+        id: "e2",
+        occurredAt: "2026-07-27T09:20:00Z",
+        eventType: "email_sent",
+        counterparty: "acme.com",
+        sourceRef: "email_domain:acme.com",
+      }),
+      ev({
+        id: "m1",
+        occurredAt: "2026-07-27T09:40:00Z",
+        eventType: "monday_status",
+        sourceRef: "monday_board:123",
+      }),
+    ]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].evidence).toBe(
+      '2 emails to acme.com · 1 Monday update · "Handlebar drawings v3"',
+    );
+    // Strongest kinds first, deduplicated.
+    expect(blocks[0].learnHints).toEqual([
+      "monday_board:123",
+      "email_domain:acme.com",
+    ]);
+  });
+});
+
 describe("draftBlocks — reconstruction tolerance", () => {
   it("reconstructs a hand-checked day within tolerance", () => {
     // Ryan's day: GermPass morning (3 events), Plow afternoon (2 events).

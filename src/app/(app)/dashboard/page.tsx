@@ -1,12 +1,11 @@
-import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import Link from "next/link";
 import { BurnRow, PageHeader, Panel, SpecCard, StatTile } from "@/components/brand";
 import { buttonVariants } from "@/components/ui/button";
 import { runWithUser } from "@/db/rls";
-import { resource, timeEntry } from "@/db/schema";
+import { invoice, resource, timeEntry } from "@/db/schema";
 import { resolveActiveEntity } from "@/lib/active-entity";
 import { requireContext } from "@/lib/auth";
-import { computeArAging } from "@/lib/invoicing-db";
 import {
   firmDashboard,
   projectProfitability,
@@ -53,7 +52,6 @@ export default async function DashboardPage() {
   const data = await runWithUser(ctx.authUser.id, async (tx) => {
     const dashWeek = await firmDashboard(tx, active.entityId, { from: week.start, to: week.end }, today);
     const profit = await projectProfitability(tx, active.entityId);
-    const ar = await computeArAging(tx, active.entityId, today);
     const util4 = await utilizationByResource(tx, active.entityId, range4);
     const submitted = await listSubmittedEntries(tx, active.entityId);
     const [myRes] = await getResourceForUser(tx, active.entityId, ctx.appUser.id);
@@ -80,6 +78,24 @@ export default async function DashboardPage() {
       .from(resource)
       .where(and(eq(resource.entityId, active.entityId), eq(resource.status, "active"), isNull(resource.deletedAt)));
 
+    // Invoices handed to Xero in the range (Xero owns AR; the app reports what
+    // it pushed, not what is outstanding).
+    const [pushed] = await tx
+      .select({
+        n: sql<number>`count(*)::int`,
+        total: sql<number>`coalesce(sum(${invoice.total}),0)::int`,
+      })
+      .from(invoice)
+      .where(
+        and(
+          eq(invoice.entityId, active.entityId),
+          isNotNull(invoice.xeroInvoiceId),
+          gte(invoice.invoiceDate, week.start),
+          lte(invoice.invoiceDate, week.end),
+          isNull(invoice.deletedAt),
+        ),
+      );
+
     let mySignals = 0;
     let myWeek = { total: 0, billable: 0 };
     if (myRes) {
@@ -89,7 +105,7 @@ export default async function DashboardPage() {
       if (mine) myWeek = { total: mine.total, billable: mine.billable };
     }
 
-    return { dashWeek, profit, ar, util4, submitted, myRes, weekHours, activeResources, mySignals, myWeek };
+    return { dashWeek, profit, pushed, util4, submitted, myRes, weekHours, activeResources, mySignals, myWeek };
   });
 
   const submittedWeeks = new Set(
@@ -121,9 +137,6 @@ export default async function DashboardPage() {
       attention.push({ color: "blaze", text: `${p.code} ${p.name} is at ${p.pctFeeUsed}% of its fee.`, tag: "OVER" });
     }
   }
-  if (data.ar.buckets["90+"] > 0) {
-    attention.push({ color: "blaze", text: `${formatCents(data.ar.buckets["90+"])} in receivables over 90 days.`, tag: "AR 90+" });
-  }
   for (const r of data.util4) {
     if (r.utilizationPct !== null && r.targetPct !== null && r.utilizationPct < r.targetPct - 10) {
       attention.push({ color: "cyan", text: `${r.name} is at ${Math.round(r.utilizationPct)}% utilization, below a ${r.targetPct}% target.`, tag: "UTIL" });
@@ -143,7 +156,7 @@ export default async function DashboardPage() {
         { label: "Backlog (WIP)", value: formatCents(data.dashWeek.wip), accent: "cyan" as const },
         { label: "Utilization", value: pct(data.dashWeek.utilizationPct), accent: "acid" as const },
         { label: "Effective rate", value: effRate ? `${formatCents(effRate)}/h` : "—", accent: "cyan" as const },
-        { label: "AR outstanding", value: formatCents(data.dashWeek.arOutstanding), accent: "blaze" as const },
+        { label: "Pushed to Xero", value: formatCents(data.pushed.total), accent: "cyan" as const },
       ]
     : isManager
       ? [
@@ -169,7 +182,7 @@ export default async function DashboardPage() {
         title: active.entityName,
         rows: [
           { k: "WIP", v: formatCents(data.dashWeek.wip) },
-          { k: "AR outstanding", v: formatCents(data.dashWeek.arOutstanding) },
+          { k: "Pushed to Xero (week)", v: formatCents(data.pushed.total) },
           { k: "Utilization", v: pct(data.dashWeek.utilizationPct) },
           { k: "Effective rate", v: effRate ? `${formatCents(effRate)}/h` : "—" },
         ],

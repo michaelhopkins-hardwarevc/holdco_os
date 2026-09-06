@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { sourceConnection } from "@/db/schema";
+import { crosswalkPerson, resource, sourceConnection } from "@/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { CalendarAccount, TokenSet } from "@/lib/integrations/calendar";
 import { outlookProvider } from "@/lib/integrations/outlook";
@@ -48,7 +48,7 @@ export async function upsertOutlookConnection(input: {
       userId: input.userId,
       provider: PROVIDER,
       status: "connected",
-      scopes: "Calendars.Read",
+      scopes: "Calendars.Read Mail.Read",
       externalAccountId: input.account.id,
       ...encrypted,
       createdBy: input.userId,
@@ -62,12 +62,59 @@ export async function upsertOutlookConnection(input: {
       ],
       set: {
         status: "connected",
+        scopes: "Calendars.Read Mail.Read",
         externalAccountId: input.account.id,
         deletedAt: null,
         ...encrypted,
         updatedBy: input.userId,
       },
     });
+}
+
+/**
+ * Register the mailbox's Entra object id as this user's Microsoft identity in
+ * crosswalk_person, so captured mail and calendar events attribute to their
+ * resource without any hand-loaded ids. No-op if the user has no resource yet
+ * (capture also falls back to the live connection, see outlookPersonFallbacks).
+ */
+export async function linkOutlookIdentity(input: {
+  orgId: string;
+  entityId: string;
+  userId: string;
+  entraId: string;
+}): Promise<boolean> {
+  const [res] = await db
+    .select({ id: resource.id })
+    .from(resource)
+    .where(
+      and(
+        eq(resource.entityId, input.entityId),
+        eq(resource.userId, input.userId),
+        isNull(resource.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!res) return false;
+  await db
+    .insert(crosswalkPerson)
+    .values({
+      organizationId: input.orgId,
+      entityId: input.entityId,
+      sourceSystem: "microsoft",
+      sourceUserId: input.entraId,
+      resourceId: res.id,
+      createdBy: input.userId,
+      updatedBy: input.userId,
+    })
+    .onConflictDoUpdate({
+      target: [
+        crosswalkPerson.entityId,
+        crosswalkPerson.sourceSystem,
+        crosswalkPerson.sourceUserId,
+      ],
+      set: { resourceId: res.id, deletedAt: null, updatedBy: input.userId },
+    });
+  return true;
 }
 
 /** Refresh the access token (Microsoft rotates refresh tokens) and persist. */

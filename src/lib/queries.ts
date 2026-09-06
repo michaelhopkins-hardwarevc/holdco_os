@@ -1,20 +1,28 @@
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lte,
+  max,
   ne,
   notInArray,
+  sql,
   type ExtractTablesWithRelations,
 } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
+  activityEvent,
   client,
   contact,
+  crosswalkParty,
+  crosswalkPerson,
+  crosswalkProject,
   expense,
   indirectCode,
   invoice,
@@ -258,6 +266,8 @@ export function listInvoices(db: QueryDb, entityId: string) {
       invoiceDate: invoice.invoiceDate,
       total: invoice.total,
       amountPaid: invoice.amountPaid,
+      xeroInvoiceId: invoice.xeroInvoiceId,
+      xeroStatus: invoice.xeroStatus,
       clientName: client.name,
       projectCode: project.code,
     })
@@ -514,6 +524,35 @@ export function listSubmittedEntries(db: QueryDb, entityId: string) {
     );
 }
 
+/**
+ * Weeks for the manager's review: submitted time (awaiting approval) plus
+ * confirmed (approved) time since `since`, so exception flags cover confirmed
+ * weeks too (confirmed = approved; managers review exceptions weekly).
+ */
+export function listReviewEntries(db: QueryDb, entityId: string, since: string) {
+  return db
+    .select({
+      resourceId: timeEntry.resourceId,
+      resourceName: resource.name,
+      resourceTitle: resource.title,
+      targetUtilization: resource.targetUtilization,
+      workDate: timeEntry.workDate,
+      hours: timeEntry.hours,
+      billable: timeEntry.billable,
+      status: timeEntry.status,
+    })
+    .from(timeEntry)
+    .innerJoin(resource, eq(resource.id, timeEntry.resourceId))
+    .where(
+      and(
+        eq(timeEntry.entityId, entityId),
+        inArray(timeEntry.status, ["submitted", "approved"]),
+        gte(timeEntry.workDate, since),
+        isNull(timeEntry.deletedAt),
+      ),
+    );
+}
+
 /** All time entries for an entity, flattened for CSV export (spec §7.7). */
 export function listTimeEntries(db: QueryDb, entityId: string) {
   return db
@@ -539,6 +578,124 @@ export function listTimeEntries(db: QueryDb, entityId: string) {
     .leftJoin(indirectCode, eq(indirectCode.id, timeEntry.indirectCodeId))
     .where(and(eq(timeEntry.entityId, entityId), isNull(timeEntry.deletedAt)))
     .orderBy(desc(timeEntry.workDate));
+}
+
+// --- WIS: queue, crosswalks, source health (Phase A) -------------------------
+
+/** Distinct unresolved source refs with counts: the "tap once" queue. */
+export function listUnresolvedRefs(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      sourceRef: activityEvent.sourceRef,
+      n: count(),
+      lastSeen: max(activityEvent.occurredAt),
+      sampleSubject: max(activityEvent.subject),
+    })
+    .from(activityEvent)
+    .where(
+      and(
+        eq(activityEvent.entityId, entityId),
+        isNull(activityEvent.resolvedProjectId),
+        isNotNull(activityEvent.sourceRef),
+        isNull(activityEvent.deletedAt),
+      ),
+    )
+    .groupBy(activityEvent.sourceRef)
+    .orderBy(desc(count()));
+}
+
+/** Open activity-drafted blocks still waiting for a charge, newest first. */
+export function listUnresolvedSignals(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      id: signal.id,
+      workDate: signal.workDate,
+      evidence: signal.evidence,
+      provenance: signal.provenance,
+      proposedHours: signal.proposedHours,
+      learnHints: signal.learnHints,
+      resourceId: signal.resourceId,
+      resourceName: resource.name,
+    })
+    .from(signal)
+    .innerJoin(resource, eq(resource.id, signal.resourceId))
+    .where(
+      and(
+        eq(signal.entityId, entityId),
+        eq(signal.provider, "activity"),
+        eq(signal.state, "open"),
+        isNull(signal.projectId),
+        isNull(signal.deletedAt),
+      ),
+    )
+    .orderBy(desc(signal.workDate))
+    .limit(200);
+}
+
+export function listCrosswalkPersons(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      id: crosswalkPerson.id,
+      sourceSystem: crosswalkPerson.sourceSystem,
+      sourceUserId: crosswalkPerson.sourceUserId,
+      resourceId: crosswalkPerson.resourceId,
+      resourceName: resource.name,
+    })
+    .from(crosswalkPerson)
+    .innerJoin(resource, eq(resource.id, crosswalkPerson.resourceId))
+    .where(and(eq(crosswalkPerson.entityId, entityId), isNull(crosswalkPerson.deletedAt)))
+    .orderBy(asc(resource.name), asc(crosswalkPerson.sourceSystem));
+}
+
+export function listCrosswalkParties(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      id: crosswalkParty.id,
+      matchType: crosswalkParty.matchType,
+      matchValue: crosswalkParty.matchValue,
+      clientId: crosswalkParty.clientId,
+      clientName: client.name,
+    })
+    .from(crosswalkParty)
+    .innerJoin(client, eq(client.id, crosswalkParty.clientId))
+    .where(and(eq(crosswalkParty.entityId, entityId), isNull(crosswalkParty.deletedAt)))
+    .orderBy(asc(client.name), asc(crosswalkParty.matchValue));
+}
+
+export function listCrosswalkProjects(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      id: crosswalkProject.id,
+      projectId: crosswalkProject.projectId,
+      projectCode: project.code,
+      projectName: project.name,
+      clientName: client.name,
+      mondayBoardId: crosswalkProject.mondayBoardId,
+      hubspotDealId: crosswalkProject.hubspotDealId,
+      sharepointFolder: crosswalkProject.sharepointFolder,
+      xeroTrackingOption: crosswalkProject.xeroTrackingOption,
+    })
+    .from(crosswalkProject)
+    .innerJoin(project, eq(project.id, crosswalkProject.projectId))
+    .innerJoin(client, eq(client.id, crosswalkProject.clientId))
+    .where(and(eq(crosswalkProject.entityId, entityId), isNull(crosswalkProject.deletedAt)))
+    .orderBy(asc(project.code));
+}
+
+/** Per-source capture health: how many events, when the last one happened,
+ *  and when we last captured anything from it. */
+export function sourceStats(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      sourceSystem: activityEvent.sourceSystem,
+      n: count(),
+      lastEvent: max(activityEvent.occurredAt),
+      lastCaptured: max(activityEvent.createdAt),
+      unresolved: sql<number>`count(*) filter (where ${activityEvent.resolvedProjectId} is null)::int`,
+    })
+    .from(activityEvent)
+    .where(and(eq(activityEvent.entityId, entityId), isNull(activityEvent.deletedAt)))
+    .groupBy(activityEvent.sourceSystem);
 }
 
 // --- Pure budget math (spec §7.2: project page shows a budget summary) -------

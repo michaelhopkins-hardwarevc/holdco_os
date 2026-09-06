@@ -78,11 +78,13 @@ describe("computeWeekTotals", () => {
 });
 
 describe("week lock/status", () => {
-  it("is editable only when all entries are draft", () => {
+  it("is editable until submitted or invoiced (confirmed/approved stays open)", () => {
     expect(isWeekEditable([])).toBe(true);
     expect(isWeekEditable(["draft", "draft"])).toBe(true);
+    expect(isWeekEditable(["draft", "approved"])).toBe(true);
+    expect(isWeekEditable(["approved"])).toBe(true);
     expect(isWeekEditable(["draft", "submitted"])).toBe(false);
-    expect(isWeekEditable(["approved"])).toBe(false);
+    expect(isWeekEditable(["approved", "invoiced"])).toBe(false);
   });
 
   it("derives an overall status", () => {

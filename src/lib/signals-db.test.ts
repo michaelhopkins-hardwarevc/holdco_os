@@ -107,7 +107,7 @@ async function makeSignal(
 }
 
 describe("acceptSignal", () => {
-  it("creates a draft time entry with correct amounts and links the signal", async () => {
+  it("creates an approved time entry (confirmed = approved) with correct amounts and links the signal", async () => {
     const s = await setup();
     const sig = await makeSignal(s, {
       chargeType: "project",
@@ -124,7 +124,7 @@ describe("acceptSignal", () => {
       .select()
       .from(timeEntry)
       .where(eq(timeEntry.id, entryId!));
-    expect(entry.status).toBe("draft");
+    expect(entry.status).toBe("approved");
     expect(Number(entry.hours)).toBe(4);
     expect(entry.billableAmount).toBe(90000); // 4 * 22500
     expect(entry.costAmount).toBe(36000); // 4 * 9000
@@ -239,7 +239,7 @@ describe("acceptSignal", () => {
     expect(entries).toHaveLength(1);
   });
 
-  it("refuses to accept into a locked week", async () => {
+  it("confirmed (approved) time does not lock the week: more can be confirmed", async () => {
     const s = await setup();
     const sig1 = await makeSignal(s, {
       chargeType: "project",
@@ -249,7 +249,38 @@ describe("acceptSignal", () => {
       externalId: "a",
     });
     await acceptSignal(db, s.actor, s.rates, sig1);
-    await submitTimesheetWeek(db, s.actor, s.ent.id, s.res.id, "2026-07-27");
+    const sig2 = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "2.00",
+      externalId: "a2",
+    });
+    const second = await acceptSignal(db, s.actor, s.rates, sig2);
+    expect(second).toBeTruthy();
+    // Same charge + day folds into the one approved cell: 4 + 2.
+    const [entry] = await db.select().from(timeEntry).where(eq(timeEntry.id, second!));
+    expect(Number(entry.hours)).toBe(6);
+    expect(entry.status).toBe("approved");
+  });
+
+  it("refuses to accept into a locked (submitted or invoiced) week", async () => {
+    const s = await setup();
+    const sig1 = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "4.00",
+      externalId: "a",
+    });
+    const first = await acceptSignal(db, s.actor, s.rates, sig1);
+    // A manual-grid submit locks the week (confirmed time stays approved, but
+    // a submitted entry in the same week blocks further confirms).
+    await db
+      .update(timeEntry)
+      .set({ status: "submitted" })
+      .where(eq(timeEntry.id, first!));
+    expect(await submitTimesheetWeek(db, s.actor, s.ent.id, s.res.id, "2026-07-27")).toBe(0);
 
     const sig2 = await makeSignal(s, {
       chargeType: "project",

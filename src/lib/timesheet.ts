@@ -100,9 +100,10 @@ export function computeWeekTotals(entries: WeekEntry[]): {
   return { perDay, totalHours, totalBillable, totalCost };
 }
 
-/** A week is editable only while every entry is still a draft. */
+/** A week is editable until it is submitted for review or invoiced. Confirmed
+ *  (approved) time does not lock it: more can be confirmed or added alongside. */
 export function isWeekEditable(statuses: TimeEntryStatus[]): boolean {
-  return statuses.every((s) => s === "draft");
+  return statuses.every((s) => s === "draft" || s === "approved");
 }
 
 /** Summarize a week's overall status for display. */

@@ -1,7 +1,13 @@
 // @vitest-environment node
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { activityEvent, entity, user } from "@/db/schema";
+import {
+  activityEvent,
+  entity,
+  resource,
+  sourceConnection,
+  user,
+} from "@/db/schema";
 import { seed } from "@/db/seed";
 import { createTestDb, type TestDb } from "@/db/test-helpers";
 import { captureActivities } from "@/lib/capture-db";
@@ -186,6 +192,88 @@ describe("captureActivities", () => {
       .from(activityEvent)
       .where(eq(activityEvent.entityId, ent.id));
     expect(rows).toHaveLength(4); // upserted in place, not duplicated
+  });
+
+  it("resolves a Microsoft identity from a connected mailbox with no crosswalk row", async () => {
+    const { ent, actor } = await seedAndActor();
+    // The seeded user has a linked resource; simulate their Outlook connection
+    // with an Entra id nobody hand-loaded into crosswalk_person.
+    const [u] = await db.select().from(user);
+    const [res] = await db
+      .select()
+      .from(resource)
+      .where(and(eq(resource.entityId, ent.id), eq(resource.userId, u.id)));
+    expect(res).toBeTruthy();
+    await db.insert(sourceConnection).values({
+      organizationId: ent.organizationId,
+      entityId: ent.id,
+      userId: u.id,
+      provider: "outlook",
+      status: "connected",
+      externalAccountId: "entra-live-only",
+    });
+
+    await captureActivities(
+      db,
+      actor,
+      ent.id,
+      graphMailToActivities(
+        [
+          {
+            id: "mail-live",
+            sentDateTime: "2026-07-27T15:30:00Z",
+            subject: "Kickoff notes",
+            toRecipients: [{ emailAddress: { address: "chris@biosciencetech.com" } }],
+          },
+        ],
+        "entra-live-only",
+      ),
+    );
+    const [row] = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.sourceEventId, "mail-live"));
+    expect(row.personId).toBe(res.id);
+    // Evidence fields land with the event.
+    expect(row.subject).toBe("Kickoff notes");
+    expect(row.counterparty).toBe("biosciencetech.com");
+    expect(row.sourceRef).toBe("email_domain:biosciencetech.com");
+  });
+
+  it("stores a meeting's real end and the strongest source ref", async () => {
+    const { ent, actor } = await seedAndActor();
+    await captureActivities(db, actor, ent.id, [
+      {
+        sourceSystem: "microsoft",
+        sourceUserId: "entra-ryan-hahn",
+        sourceEventId: "cal-end",
+        eventType: "calendar_meeting",
+        occurredAt: "2026-07-27T09:00:00Z",
+        endedAt: "2026-07-27T10:00:00Z",
+        hardness: "hard",
+        subject: "Standup",
+        raw: {},
+      },
+      ...mondayToActivities([
+        {
+          id: "log-ref",
+          created_at: "2026-07-27T09:15:00Z",
+          creator_id: "monday-ryan",
+          board_id: "monday-board-6041",
+          kind: "status_change",
+        },
+      ]),
+    ]);
+    const [cal] = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.sourceEventId, "cal-end"));
+    expect(cal.endedAt?.toISOString()).toBe("2026-07-27T10:00:00.000Z");
+    const [mon] = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.sourceEventId, "log-ref"));
+    expect(mon.sourceRef).toBe("monday_board:monday-board-6041");
   });
 
   it("returns an empty summary for no events", async () => {
