@@ -1,8 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Paths that do not require authentication.
-const PUBLIC_PREFIXES = ["/login", "/auth", "/api/health"];
+// Paths that do not require a signed-in session. The capture cron route
+// authenticates itself with the CRON_SECRET bearer token (Vercel Cron carries
+// no session cookie); without this exemption every nightly run was redirected
+// to /login and silently did nothing.
+const PUBLIC_PREFIXES = ["/login", "/auth", "/api/health", "/api/capture/sync"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some(
