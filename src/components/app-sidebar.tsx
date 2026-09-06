@@ -21,6 +21,7 @@ const NAV: { label: string; href: string }[] = [
   { label: "Indirect codes", href: "/indirect-codes" },
   { label: "Crosswalks", href: "/crosswalks" },
   { label: "Connections", href: "/connections" },
+  { label: "Not tracked", href: "/not-tracked" },
   { label: "Entities", href: "/entities" },
 ];
 

@@ -27,6 +27,7 @@ const NAV: { label: string; href: string }[] = [
   { label: "Crosswalks", href: "/crosswalks" },
   { label: "Import (one-time)", href: "/import" },
   { label: "Connections", href: "/connections" },
+  { label: "Not tracked (the contract)", href: "/not-tracked" },
   { label: "Entities", href: "/entities" },
   { label: "Account", href: "/account" },
 ];

@@ -85,7 +85,11 @@ export default async function ConnectionsPage({
           Where work signal comes from. Connect your Microsoft 365 mailbox so
           your sent mail and meetings draft your time; Monday and HubSpot feed
           the whole firm. Everything is read-only. Only you see your own drafts,
-          and nothing posts to a timesheet until you confirm it.
+          and nothing posts to a timesheet until you confirm it. Read{" "}
+          <a href="/not-tracked" className="text-alum hover:text-acid underline">
+            what is not tracked
+          </a>{" "}
+          before you connect.
         </p>
       </div>
 
