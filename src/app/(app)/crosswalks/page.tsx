@@ -22,9 +22,11 @@ import {
   addPartyCrosswalk,
   addPersonCrosswalk,
   deleteCrosswalk,
+  deleteSourceRefRuleAction,
   upsertProjectCrosswalk,
 } from "@/lib/actions/crosswalks";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
+import { describeSourceRef } from "@/lib/source-ref";
 import {
   listClients,
   listCrosswalkParties,
@@ -32,6 +34,7 @@ import {
   listCrosswalkProjects,
   listProjects,
   listResources,
+  listSourceRefRules,
 } from "@/lib/queries";
 
 // Crosswalks: how the outside world's ids map onto this app's people, clients
@@ -58,6 +61,7 @@ export default async function CrosswalksPage() {
     resources: await listResources(tx, active.entityId, { activeOnly: true }),
     clients: await listClients(tx, active.entityId),
     projects: await listProjects(tx, active.entityId),
+    rules: await listSourceRefRules(tx, active.entityId),
   }));
 
   const del = (kind: "person" | "party" | "project", id: string) => (
@@ -78,6 +82,54 @@ export default async function CrosswalksPage() {
         title="Crosswalks"
         blurb={`${active.entityName} · which external ids belong to which person, client, and project. Rows are added for you when someone connects Outlook, maps a source in the queue, or corrects a drafted block. Edit here only when a mapping is wrong.`}
       />
+
+      {/* Source rules: the explicit per-source answers from the queue and from
+          confirm-time corrections (project, indirect, or ignore). */}
+      <Panel title="Source rules" right="from the queue and your corrections">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Source</TableHead>
+              <TableHead>Answer</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.rules.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3} className="text-alum-2">
+                  No rules yet. Map a source in the Queue, or correct a drafted
+                  block on the timesheet, and it appears here.
+                </TableCell>
+              </TableRow>
+            ) : (
+              data.rules.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{describeSourceRef(r.sourceRef)}</TableCell>
+                  <TableCell className="font-mono text-[11px] uppercase">
+                    {r.kind === "project" ? (
+                      <span className="text-acid">{r.projectCode ?? "project"}</span>
+                    ) : r.kind === "indirect" ? (
+                      <span className="text-alum">{r.indirectCode ?? "indirect"}</span>
+                    ) : (
+                      <span className="text-alum-2">ignored</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <form action={deleteSourceRefRuleAction}>
+                      <input type="hidden" name="entityId" value={active.entityId} />
+                      <input type="hidden" name="id" value={r.id} />
+                      <Button type="submit" variant="ghost" size="xs">
+                        Forget
+                      </Button>
+                    </form>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Panel>
 
       {/* Projects */}
       <Panel title="Projects" right="Monday board · HubSpot deal · SharePoint · Xero tracking">

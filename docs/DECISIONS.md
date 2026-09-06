@@ -2,6 +2,39 @@
 
 Short notes on non-obvious choices. Newest first.
 
+## 2026-09-06 — Going live: entity consolidation, cron fix, and source rules
+
+Applied against production after Supabase was restored (migrations 0015 to
+0017). What the first live sync taught us, and what changed because of it:
+
+- **Two entities, one real.** The 9 Aug master-data sync had written every
+  client, project, phase and crosswalk into the seed entity ("Brooks Stevens
+  Design Associates", members owner@/manager@/staff@example.com), while the
+  live entity ("Brooks Stevens", the real logins, Outlook, Xero, all captured
+  activity) had none. `scripts/wis-consolidate-entity.mjs` moved the masters,
+  merged the duplicate Ryan Hahn (the seed copy's "login" was
+  manager@example.com; detached), retired the seed entity, and audited every
+  step. Ten July sample time entries and INV-0001 (a Xero draft built from
+  sample time) were removed/voided in the app; the Xero draft is voided by hand.
+- **The nightly cron never ran.** The auth middleware redirected
+  `/api/capture/sync` to /login before its bearer check. Exempted; the route
+  still requires `CRON_SECRET`.
+- **`source_ref_rule`: the explicit per-source answer** (project, indirect, or
+  ignore), checked before the crosswalks. Crosswalks can say "this board is
+  this project" but not "marquette.edu is business development" or "ignore
+  gmail.com", and a founder's week is half of that. The queue offers all three
+  answers; confirm-time corrections to an indirect code write the same rule;
+  /crosswalks lists and forgets rules. Ignored events are never drafted;
+  indirect ones draft as indirect blocks (never billable).
+- **Single-project clients.** An event that reaches a client but no project
+  charges to the client's only active project (medium confidence). With LeMans
+  on one project, "16 emails to parts-unltd.com" now lands pre-charged instead
+  of asking.
+- **First live result:** 150 events captured in the 7-day window, 28 to a client
+  by domain, 19 blocks drafted for Michael with real evidence lines. The queue's
+  top unplaced sources were parts-unltd.com, marquette.edu, slate.auto,
+  gmail.com, basco.com; the rules above are what make each a one-tap answer.
+
 ## 2026-09-05 — Re-plan: the app is the time-and-effort ledger between the work and the books
 
 Full review of the record and the code (State of Record 11 Aug, Rev 2, the WIS

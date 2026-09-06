@@ -6,15 +6,16 @@ import type { QueryDb } from "@/lib/queries";
 
 // Persist the Draft stage: cluster a resource's captured activity_events into
 // work blocks and upsert them as `signal` rows, so they surface on the existing
-// timesheet confirm surface. Resolved blocks arrive pre-charged to a project;
-// unresolved blocks arrive with no charge for the person to link (which the
-// confirm flow then turns into a crosswalk rule). Additive: never writes a
-// time_entry.
+// timesheet confirm surface. Resolved blocks arrive pre-charged (to a project,
+// or to an indirect code when a source rule says so); unresolved blocks arrive
+// with no charge for the person to link (which the confirm flow then turns
+// into a rule). Additive: never writes a time_entry.
 //
 // Guardrails: an event already folded into a block the person confirmed or
 // dismissed is never re-drafted (no double counting, no resurrecting a skip);
-// every drafted block links back to its events (activity_event.signal_id), so
-// evidence is auditable and corrections can learn from the sources behind it.
+// an event a rule says to ignore is never drafted; every drafted block links
+// back to its events (activity_event.signal_id), so evidence is auditable and
+// corrections can learn from the sources behind it.
 
 export type DraftSummary = {
   blocks: number;
@@ -38,7 +39,9 @@ export async function draftSignalsForResource(
       hardness: activityEvent.hardness,
       resolvedProjectId: activityEvent.resolvedProjectId,
       resolvedClientId: activityEvent.resolvedClientId,
+      resolvedIndirectCodeId: activityEvent.resolvedIndirectCodeId,
       resolutionConfidence: activityEvent.resolutionConfidence,
+      matchedBy: activityEvent.matchedBy,
       eventType: activityEvent.eventType,
       subject: activityEvent.subject,
       counterparty: activityEvent.counterparty,
@@ -57,9 +60,15 @@ export async function draftSignalsForResource(
       ),
     );
 
-  // Never re-draft an event the person already confirmed or skipped.
+  // Never re-draft an event the person already confirmed or skipped, and never
+  // draft one a rule says to ignore.
   const input: DraftInputEvent[] = rows
-    .filter((r) => r.linkedState !== "accepted" && r.linkedState !== "dismissed")
+    .filter(
+      (r) =>
+        r.linkedState !== "accepted" &&
+        r.linkedState !== "dismissed" &&
+        r.matchedBy !== "ignored",
+    )
     .map((e) => ({
       id: e.id,
       occurredAt: e.occurredAt.toISOString(),
@@ -67,6 +76,7 @@ export async function draftSignalsForResource(
       hardness: e.hardness,
       resolvedProjectId: e.resolvedProjectId,
       resolvedClientId: e.resolvedClientId,
+      resolvedIndirectCodeId: e.resolvedIndirectCodeId,
       resolutionConfidence: e.resolutionConfidence,
       eventType: e.eventType,
       subject: e.subject,
@@ -82,20 +92,23 @@ export async function draftSignalsForResource(
   };
 
   for (const b of blocks) {
-    const resolved = b.projectId !== null;
+    const resolved = b.projectId !== null || b.indirectCodeId !== null;
     if (resolved) summary.resolved += 1;
     else summary.unresolved += 1;
 
-    // One open draft per (resource, day, project). Unresolved blocks key on
+    // One open draft per (resource, day, charge). Unresolved blocks key on
     // their strongest hint (or anchor event) so several can coexist in a day.
-    const externalId = resolved
+    const externalId = b.projectId
       ? `${b.workDate}:${b.projectId}`
-      : `${b.workDate}:u:${b.learnHints[0] ?? b.anchorEventId}`;
+      : b.indirectCodeId
+        ? `${b.workDate}:i:${b.indirectCodeId}`
+        : `${b.workDate}:u:${b.learnHints[0] ?? b.anchorEventId}`;
     const hintLabel = b.learnHints.length ? ` · ${describeHints(b.learnHints)}` : "";
     const evidence = resolved
       ? b.evidence
       : `Pick a charge · ${b.evidence}${hintLabel}`;
     const provenance = `${b.hours.toFixed(2)} h · ${b.confidence} confidence`;
+    const chargeType = b.indirectCodeId ? ("indirect" as const) : ("project" as const);
 
     const [row] = await db
       .insert(signal)
@@ -108,11 +121,12 @@ export async function draftSignalsForResource(
         externalId,
         evidence,
         provenance,
-        chargeType: "project",
+        chargeType,
         projectId: b.projectId,
+        indirectCodeId: b.indirectCodeId,
         proposedHours: b.hours.toFixed(2),
         confidence: b.confidence,
-        billable: resolved,
+        billable: b.projectId !== null,
         state: "open",
         learnHints: b.learnHints,
         createdBy: actor.actorId,
@@ -123,10 +137,12 @@ export async function draftSignalsForResource(
         // Only refresh a still-open draft; never resurrect an accepted/dismissed one.
         setWhere: eq(signal.state, "open"),
         set: {
+          chargeType,
           projectId: b.projectId,
+          indirectCodeId: b.indirectCodeId,
           proposedHours: b.hours.toFixed(2),
           confidence: b.confidence,
-          billable: resolved,
+          billable: b.projectId !== null,
           evidence,
           provenance,
           learnHints: b.learnHints,

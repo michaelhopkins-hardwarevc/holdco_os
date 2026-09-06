@@ -23,6 +23,8 @@ export type DraftInputEvent = {
   hardness: "hard" | "soft";
   resolvedProjectId: string | null;
   resolvedClientId: string | null;
+  // A source_ref_rule can charge an event to indirect time instead.
+  resolvedIndirectCodeId?: string | null;
   resolutionConfidence: Confidence | null;
   eventType?: string;
   subject?: string | null;
@@ -34,6 +36,7 @@ export type WorkBlock = {
   workDate: string; // YYYY-MM-DD (from the block's first event)
   projectId: string | null;
   clientId: string | null;
+  indirectCodeId: string | null; // set when the block is indirect time
   startAt: string; // ISO
   endAt: string; // ISO
   hours: number; // rounded to 0.25
@@ -88,10 +91,18 @@ function anchorScore(e: DraftInputEvent): number {
 
 function blockConfidence(
   events: DraftInputEvent[],
-  projectId: string | null,
+  charged: boolean,
 ): Confidence {
-  if (!projectId) return "low";
+  if (!charged) return "low";
   return events.some((e) => e.hardness === "hard") ? "high" : "med";
+}
+
+// The charge an event resolved to: a project, an indirect code, or nothing.
+// Runs split whenever this changes, so a block is always one charge.
+function chargeKeyOf(e: DraftInputEvent): string {
+  if (e.resolvedProjectId) return `project:${e.resolvedProjectId}`;
+  if (e.resolvedIndirectCodeId) return `indirect:${e.resolvedIndirectCodeId}`;
+  return "none";
 }
 
 /**
@@ -185,10 +196,9 @@ export function draftBlocks(
       const prevEnd = prev
         ? Math.max(ms(prev.occurredAt), prev.endedAt ? ms(prev.endedAt) : 0)
         : 0;
-      const sameProject =
-        prev && prev.resolvedProjectId === e.resolvedProjectId;
+      const sameCharge = prev && chargeKeyOf(prev) === chargeKeyOf(e);
       const smallGap = prev && ms(e.occurredAt) - prevEnd <= gapMs;
-      if (run && sameProject && smallGap) run.push(e);
+      if (run && sameCharge && smallGap) run.push(e);
       else runs.push([e]);
     }
 
@@ -229,15 +239,17 @@ export function draftBlocks(
         run[0],
       );
       const projectId = run[0].resolvedProjectId;
+      const indirectCodeId = projectId ? null : (run[0].resolvedIndirectCodeId ?? null);
 
       dayBlocks.push({
         workDate: day,
         projectId,
         clientId: run[0].resolvedClientId,
+        indirectCodeId,
         startAt: new Date(startMs).toISOString(),
         endAt: new Date(endMs).toISOString(),
         hours,
-        confidence: blockConfidence(run, projectId),
+        confidence: blockConfidence(run, !!(projectId || indirectCodeId)),
         anchorEventId: anchor.id,
         eventIds: run.map((e) => e.id),
         evidence: composeEvidence(run),

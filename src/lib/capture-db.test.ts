@@ -1,11 +1,16 @@
 // @vitest-environment node
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   activityEvent,
+  client,
+  crosswalkParty,
   entity,
+  indirectCode,
+  project,
   resource,
   sourceConnection,
+  sourceRefRule,
   user,
 } from "@/db/schema";
 import { seed } from "@/db/seed";
@@ -125,10 +130,11 @@ describe("captureActivities", () => {
 
     // 4 events landed: monday status, hubspot note, 2 sent mails.
     expect(summary.captured).toBe(4);
-    // monday_status (GermPass) + hubspot_note (Plow) resolve to a project.
-    expect(summary.resolvedToProject).toBe(2);
-    // The external email resolves to a client (MicroLumix) but no project.
-    expect(summary.resolvedToClientOnly).toBe(1);
+    // monday_status (GermPass) + hubspot_note (Plow) resolve to a project, and
+    // the external email reaches MicroLumix, whose only active project it then
+    // charges to (single-project-client rule).
+    expect(summary.resolvedToProject).toBe(3);
+    expect(summary.resolvedToClientOnly).toBe(0);
     // The all-internal email resolves to nothing.
     expect(summary.unresolved).toBe(1);
     expect(summary.hard).toBe(4);
@@ -274,6 +280,93 @@ describe("captureActivities", () => {
       .from(activityEvent)
       .where(eq(activityEvent.sourceEventId, "log-ref"));
     expect(mon.sourceRef).toBe("monday_board:monday-board-6041");
+  });
+
+  it("charges a client-only event to the client's only active project", async () => {
+    const { ent, actor } = await seedAndActor();
+    // biosciencetech.com resolves to MicroLumix by domain. Retire all but one
+    // of MicroLumix's active projects so the single-project rule applies.
+    // Find MicroLumix through its seeded domain rule rather than its display name.
+    const [party] = await db
+      .select({ clientId: crosswalkParty.clientId })
+      .from(crosswalkParty)
+      .where(
+        and(eq(crosswalkParty.entityId, ent.id), eq(crosswalkParty.matchValue, "biosciencetech.com")),
+      );
+    const [cli] = await db.select().from(client).where(eq(client.id, party.clientId));
+    const projs = await db
+      .select()
+      .from(project)
+      .where(and(eq(project.clientId, cli.id), isNull(project.deletedAt)));
+    expect(projs.length).toBeGreaterThanOrEqual(1);
+    for (const p of projs.slice(1)) {
+      await db.update(project).set({ status: "closed" }).where(eq(project.id, p.id));
+    }
+    await captureActivities(
+      db,
+      actor,
+      ent.id,
+      graphMailToActivities(
+        [
+          {
+            id: "mail-single",
+            sentDateTime: "2026-07-27T15:30:00Z",
+            toRecipients: [{ emailAddress: { address: "chris@biosciencetech.com" } }],
+          },
+        ],
+        "entra-ryan-hahn",
+      ),
+    );
+    const [row] = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.sourceEventId, "mail-single"));
+    expect(row.resolvedProjectId).toBe(projs[0].id);
+    expect(row.matchedBy).toBe("client_single_project");
+    expect(row.resolutionConfidence).toBe("med");
+  });
+
+  it("an explicit source rule wins: indirect and ignore", async () => {
+    const { ent, actor } = await seedAndActor();
+    const [ind] = await db
+      .select()
+      .from(indirectCode)
+      .where(and(eq(indirectCode.entityId, ent.id), isNull(indirectCode.deletedAt)))
+      .limit(1);
+    await db.insert(sourceRefRule).values([
+      {
+        organizationId: ent.organizationId,
+        entityId: ent.id,
+        sourceRef: "email_domain:marquette.edu",
+        kind: "indirect",
+        indirectCodeId: ind.id,
+      },
+      {
+        organizationId: ent.organizationId,
+        entityId: ent.id,
+        sourceRef: "email_domain:gmail.com",
+        kind: "ignore",
+      },
+    ]);
+    await captureActivities(
+      db,
+      actor,
+      ent.id,
+      graphMailToActivities(
+        [
+          { id: "mail-bd", sentDateTime: "2026-07-27T10:00:00Z", toRecipients: [{ emailAddress: { address: "coach@marquette.edu" } }] },
+          { id: "mail-personal", sentDateTime: "2026-07-27T11:00:00Z", toRecipients: [{ emailAddress: { address: "me@gmail.com" } }] },
+        ],
+        "entra-ryan-hahn",
+      ),
+    );
+    const [bd] = await db.select().from(activityEvent).where(eq(activityEvent.sourceEventId, "mail-bd"));
+    expect(bd.resolvedIndirectCodeId).toBe(ind.id);
+    expect(bd.resolvedProjectId).toBeNull();
+    expect(bd.matchedBy).toBe("rule_indirect");
+    const [personal] = await db.select().from(activityEvent).where(eq(activityEvent.sourceEventId, "mail-personal"));
+    expect(personal.matchedBy).toBe("ignored");
+    expect(personal.resolvedProjectId).toBeNull();
   });
 
   it("returns an empty summary for no events", async () => {

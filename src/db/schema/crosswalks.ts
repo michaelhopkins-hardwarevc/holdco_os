@@ -1,7 +1,39 @@
-import { pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { auditColumns, partyMatchType, sourceSystem } from "./_shared";
 import { entity, organization } from "./core";
-import { client, project, resource } from "./phase1";
+import { client, indirectCode, project, resource } from "./phase1";
+
+// What a source_ref_rule does with events that carry its ref.
+export const sourceRefRuleKind = pgEnum("source_ref_rule_kind", [
+  "project",
+  "indirect",
+  "ignore",
+]);
+
+// The explicit human answer for one source ref ("email_domain:gmail.com",
+// "monday_board:123"): charge it to a project, to an indirect code (BD, admin,
+// personal), or ignore it (never draft). Checked BEFORE the crosswalks at
+// resolution, so a tap in the queue settles a pattern for good. Project refs
+// usually also land as crosswalk rows (learn-db); this table is what makes
+// "indirect" and "ignore" possible, which crosswalks cannot express.
+export const sourceRefRule = pgTable(
+  "source_ref_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entity.id),
+    sourceRef: text("source_ref").notNull(),
+    kind: sourceRefRuleKind("kind").notNull(),
+    projectId: uuid("project_id").references(() => project.id),
+    indirectCodeId: uuid("indirect_code_id").references(() => indirectCode.id),
+    ...auditColumns(),
+  },
+  (t) => [unique("source_ref_rule_ref_unique").on(t.entityId, t.sourceRef)],
+).enableRLS();
 
 // ---------------------------------------------------------------------------
 // Crosswalks (WIS Day-One Activity Layer §4).

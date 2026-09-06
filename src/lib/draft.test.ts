@@ -178,6 +178,26 @@ describe("draftBlocks — guardrails and evidence", () => {
   });
 });
 
+describe("draftBlocks — indirect charges", () => {
+  it("keeps indirect time as its own charged block, split from project time", () => {
+    const blocks = draftBlocks([
+      ev({ id: "p", occurredAt: "2026-07-27T09:00:00Z" }),
+      ev({
+        id: "i",
+        occurredAt: "2026-07-27T09:30:00Z",
+        resolvedProjectId: null,
+        resolvedClientId: null,
+        resolvedIndirectCodeId: "bd",
+      }),
+    ]);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ projectId: "p1", indirectCodeId: null });
+    expect(blocks[1]).toMatchObject({ projectId: null, indirectCodeId: "bd" });
+    // An indirect block is charged, so it is not "low" like an unresolved one.
+    expect(blocks[1].confidence).toBe("high");
+  });
+});
+
 describe("draftBlocks — reconstruction tolerance", () => {
   it("reconstructs a hand-checked day within tolerance", () => {
     // Ryan's day: GermPass morning (3 events), Plow afternoon (2 events).

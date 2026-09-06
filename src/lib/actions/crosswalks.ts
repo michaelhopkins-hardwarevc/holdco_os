@@ -8,12 +8,13 @@ import {
   crosswalkPerson,
   crosswalkProject,
   project,
+  sourceRefRule,
 } from "@/db/schema";
 import { assertEntityRole, MANAGER_ROLES } from "@/lib/auth";
 import { normalizeDomain, normalizeName } from "@/lib/crosswalk-map";
 import { draftForEntity } from "@/lib/draft-db";
 import { formEnum, formRequired, formStr } from "@/lib/form";
-import { mapSourceRefToProject } from "@/lib/learn-db";
+import { type LearnTarget, mapSourceRef, mapSourceRefToProject } from "@/lib/learn-db";
 
 // Crosswalks are reference data (no money): manager/admin/owner may edit them.
 async function requireManager(entityId: string) {
@@ -45,6 +46,38 @@ export async function mapRefToProjectAction(formData: FormData): Promise<void> {
   const actor = await requireManager(entityId);
   await mapSourceRefToProject(db, actor, entityId, ref, projectId);
   await redraftRecent(entityId, actor);
+  refresh();
+}
+
+/** Queue: place one source ref as indirect time, or ignore it for good. */
+export async function mapRefAction(formData: FormData): Promise<void> {
+  const entityId = formRequired(formData, "entityId", "Entity");
+  const ref = formRequired(formData, "ref", "Source");
+  const kind = formEnum(formData, "kind", ["project", "indirect", "ignore"] as const, "ignore");
+  const actor = await requireManager(entityId);
+  let target: LearnTarget;
+  if (kind === "project") {
+    target = { kind, projectId: formRequired(formData, "projectId", "Project") };
+  } else if (kind === "indirect") {
+    target = { kind, indirectCodeId: formRequired(formData, "indirectCodeId", "Indirect code") };
+  } else {
+    target = { kind: "ignore" };
+  }
+  await mapSourceRef(db, actor, entityId, ref, target);
+  await redraftRecent(entityId, actor);
+  refresh();
+}
+
+/** Crosswalks: forget a source rule (events carrying it go back to the queue
+ *  on the next sync). */
+export async function deleteSourceRefRuleAction(formData: FormData): Promise<void> {
+  const entityId = formRequired(formData, "entityId", "Entity");
+  const id = formRequired(formData, "id", "Rule");
+  const actor = await requireManager(entityId);
+  await db
+    .update(sourceRefRule)
+    .set({ deletedAt: new Date(), updatedBy: actor.actorId })
+    .where(and(eq(sourceRefRule.id, id), eq(sourceRefRule.entityId, entityId)));
   refresh();
 }
 

@@ -9,11 +9,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { runWithUser } from "@/db/rls";
-import { mapRefToProjectAction } from "@/lib/actions/crosswalks";
+import { mapRefAction, mapRefToProjectAction } from "@/lib/actions/crosswalks";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
 import { describeSourceRef } from "@/lib/source-ref";
 import { getWeek } from "@/lib/timesheet";
 import {
+  listIndirectCodes,
   listProjects,
   listUnresolvedRefs,
   listUnresolvedSignals,
@@ -34,12 +35,13 @@ export default async function QueuePage() {
     );
   }
 
-  const { refs, blocks, projects } = await runWithUser(
+  const { refs, blocks, projects, codes } = await runWithUser(
     ctx.authUser.id,
     async (tx) => ({
       refs: await listUnresolvedRefs(tx, active.entityId),
       blocks: await listUnresolvedSignals(tx, active.entityId),
       projects: await listProjects(tx, active.entityId),
+      codes: await listIndirectCodes(tx, active.entityId, { activeOnly: true }),
     }),
   );
 
@@ -79,27 +81,59 @@ export default async function QueuePage() {
                     {r.sampleSubject ? ` · "${r.sampleSubject.slice(0, 60)}"` : ""}
                   </div>
                 </div>
-                {projects.length > 0 && (
-                  <form action={mapRefToProjectAction} className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {projects.length > 0 && (
+                    <form action={mapRefToProjectAction} className="flex items-center gap-2">
+                      <input type="hidden" name="entityId" value={active.entityId} />
+                      <input type="hidden" name="ref" value={r.sourceRef ?? ""} />
+                      <Select name="projectId" defaultValue={projects[0].id}>
+                        <SelectTrigger className="h-8 w-[220px]">
+                          <SelectValue placeholder="Project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projects.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.code} · {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button type="submit" size="sm">
+                        Project ›
+                      </Button>
+                    </form>
+                  )}
+                  {codes.length > 0 && (
+                    <form action={mapRefAction} className="flex items-center gap-2">
+                      <input type="hidden" name="entityId" value={active.entityId} />
+                      <input type="hidden" name="ref" value={r.sourceRef ?? ""} />
+                      <input type="hidden" name="kind" value="indirect" />
+                      <Select name="indirectCodeId" defaultValue={codes[0].id}>
+                        <SelectTrigger className="h-8 w-[170px]">
+                          <SelectValue placeholder="Indirect" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {codes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.code} · {c.category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button type="submit" variant="outline" size="sm">
+                        Indirect ›
+                      </Button>
+                    </form>
+                  )}
+                  <form action={mapRefAction}>
                     <input type="hidden" name="entityId" value={active.entityId} />
                     <input type="hidden" name="ref" value={r.sourceRef ?? ""} />
-                    <Select name="projectId" defaultValue={projects[0].id}>
-                      <SelectTrigger className="h-8 w-[240px]">
-                        <SelectValue placeholder="Project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.code} · {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button type="submit" size="sm">
-                      Map ›
+                    <input type="hidden" name="kind" value="ignore" />
+                    <Button type="submit" variant="ghost" size="sm">
+                      Ignore
                     </Button>
                   </form>
-                )}
+                </div>
               </div>
             ))}
           </div>

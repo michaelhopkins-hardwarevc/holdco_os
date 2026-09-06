@@ -188,12 +188,21 @@ export async function acceptSignal(
   //    (a board, a deal, a domain), which is what resolves future events;
   //  - a titled single-source signal (a calendar item) teaches a subject rule.
   if (sig.provider === "activity") {
-    if (isProject && projectId && sig.learnHints && sig.learnHints.length > 0) {
-      await learnFromAcceptance(
-        db,
-        { orgId: actor.orgId, actorId: actor.actorId },
-        { entityId: sig.entityId, hints: sig.learnHints, projectId },
-      );
+    if (sig.learnHints && sig.learnHints.length > 0) {
+      const target = isProject
+        ? projectId
+          ? ({ kind: "project", projectId } as const)
+          : null
+        : indirectCodeId
+          ? ({ kind: "indirect", indirectCodeId } as const)
+          : null;
+      if (target) {
+        await learnFromAcceptance(
+          db,
+          { orgId: actor.orgId, actorId: actor.actorId },
+          { entityId: sig.entityId, hints: sig.learnHints, target },
+        );
+      }
     }
   } else {
     await recordRule(db, actor, {

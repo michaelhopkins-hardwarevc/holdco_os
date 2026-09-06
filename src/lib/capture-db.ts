@@ -5,6 +5,7 @@ import {
   resource,
   signalRule,
   sourceConnection,
+  sourceRefRule,
   sourceSystem,
 } from "@/db/schema";
 import { loadCrosswalks } from "@/lib/crosswalk-db";
@@ -112,6 +113,7 @@ export async function captureActivities(
       code: project.code,
       name: project.name,
       clientId: project.clientId,
+      status: project.status,
     })
     .from(project)
     .where(and(eq(project.entityId, entityId), isNull(project.deletedAt)));
@@ -147,17 +149,64 @@ export async function captureActivities(
     rulesByResource.set(rr.resourceId, m);
   }
 
+  // Explicit answers from the queue / confirm corrections: a source ref that
+  // a person already placed (project, indirect, or ignore). These win.
+  const refRules = new Map(
+    (
+      await db
+        .select()
+        .from(sourceRefRule)
+        .where(
+          and(eq(sourceRefRule.entityId, entityId), isNull(sourceRefRule.deletedAt)),
+        )
+    ).map((r) => [r.sourceRef, r]),
+  );
+
+  // Single-project clients: when an event reaches a client but no project and
+  // that client has exactly one active project, that project is the charge.
+  const activeProjectsByClient = new Map<string, string[]>();
+  for (const p of projectRows) {
+    if (p.status !== "active") continue;
+    activeProjectsByClient.set(p.clientId, [
+      ...(activeProjectsByClient.get(p.clientId) ?? []),
+      p.id,
+    ]);
+  }
+
   for (const raw of raws) {
+    const sourceRef = sourceRefOf(raw);
     const base = resolveEvent(raw, xwalks);
     let projectId = base.projectId;
     let clientId = base.clientId;
+    let indirectCodeId: string | null = null;
     let confidence = base.confidence;
     let matchedBy = base.matchedBy;
+
+    const rule = sourceRef ? refRules.get(sourceRef) : undefined;
+    if (rule) {
+      // A human's explicit answer for this source overrides every guess.
+      if (rule.kind === "project" && rule.projectId) {
+        projectId = rule.projectId;
+        clientId = clientByProject.get(rule.projectId) ?? clientId;
+        confidence = "high";
+        matchedBy = "rule_project";
+      } else if (rule.kind === "indirect" && rule.indirectCodeId) {
+        projectId = null;
+        indirectCodeId = rule.indirectCodeId;
+        confidence = "high";
+        matchedBy = "rule_indirect";
+      } else if (rule.kind === "ignore") {
+        projectId = null;
+        clientId = null;
+        confidence = "low";
+        matchedBy = "ignored";
+      }
+    }
 
     // Subject->project fallback: for a titled event the crosswalks couldn't
     // resolve, match the subject against project codes/names and the person's
     // learned rules (the intelligence that used to live in the calendar sync).
-    if (projectId === null && raw.subject && base.resourceId) {
+    if (!rule && projectId === null && raw.subject && base.resourceId) {
       const prop = mapSubjectToProposal(raw.subject, {
         projects,
         indirectCodes: [],
@@ -171,11 +220,22 @@ export async function captureActivities(
       }
     }
 
-    const resolved = projectId !== null || clientId !== null;
+    // Client known, project not: a client with exactly one active project
+    // charges to it (medium confidence; the person still confirms).
+    if (!rule && projectId === null && clientId !== null) {
+      const only = activeProjectsByClient.get(clientId);
+      if (only && only.length === 1) {
+        projectId = only[0];
+        confidence = "med";
+        matchedBy = "client_single_project";
+      }
+    }
+
+    const resolved =
+      projectId !== null || clientId !== null || indirectCodeId !== null;
     const endedAt = raw.endedAt ? new Date(raw.endedAt) : null;
     const subject = raw.subject ?? null;
     const counterparty = raw.senderDomain ?? raw.counterpartyName ?? null;
-    const sourceRef = sourceRefOf(raw);
 
     await db
       .insert(activityEvent)
@@ -196,6 +256,7 @@ export async function captureActivities(
         sourceRef,
         resolvedProjectId: projectId,
         resolvedClientId: clientId,
+        resolvedIndirectCodeId: indirectCodeId,
         resolutionConfidence: resolved ? confidence : null,
         matchedBy,
         createdBy: actor.actorId,

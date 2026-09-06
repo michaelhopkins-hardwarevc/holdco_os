@@ -34,6 +34,7 @@ import {
   resource,
   signal,
   signalRule,
+  sourceRefRule,
   timeEntry,
   user,
 } from "@/db/schema";
@@ -582,7 +583,9 @@ export function listTimeEntries(db: QueryDb, entityId: string) {
 
 // --- WIS: queue, crosswalks, source health (Phase A) -------------------------
 
-/** Distinct unresolved source refs with counts: the "tap once" queue. */
+/** Distinct unplaced source refs with counts: the "tap once" queue. A ref
+ *  drops out once it resolves to a project, is charged to indirect, is
+ *  ignored, or has an explicit rule. */
 export function listUnresolvedRefs(db: QueryDb, entityId: string) {
   return db
     .select({
@@ -596,12 +599,32 @@ export function listUnresolvedRefs(db: QueryDb, entityId: string) {
       and(
         eq(activityEvent.entityId, entityId),
         isNull(activityEvent.resolvedProjectId),
+        isNull(activityEvent.resolvedIndirectCodeId),
         isNotNull(activityEvent.sourceRef),
+        ne(activityEvent.matchedBy, "ignored"),
         isNull(activityEvent.deletedAt),
+        sql`not exists (select 1 from ${sourceRefRule} r where r.entity_id = ${activityEvent.entityId} and r.source_ref = ${activityEvent.sourceRef} and r.deleted_at is null)`,
       ),
     )
     .groupBy(activityEvent.sourceRef)
     .orderBy(desc(count()));
+}
+
+/** The explicit per-source answers (project / indirect / ignore). */
+export function listSourceRefRules(db: QueryDb, entityId: string) {
+  return db
+    .select({
+      id: sourceRefRule.id,
+      sourceRef: sourceRefRule.sourceRef,
+      kind: sourceRefRule.kind,
+      projectCode: project.code,
+      indirectCode: indirectCode.code,
+    })
+    .from(sourceRefRule)
+    .leftJoin(project, eq(project.id, sourceRefRule.projectId))
+    .leftJoin(indirectCode, eq(indirectCode.id, sourceRefRule.indirectCodeId))
+    .where(and(eq(sourceRefRule.entityId, entityId), isNull(sourceRefRule.deletedAt)))
+    .orderBy(asc(sourceRefRule.kind), asc(sourceRefRule.sourceRef));
 }
 
 /** Open activity-drafted blocks still waiting for a charge, newest first. */

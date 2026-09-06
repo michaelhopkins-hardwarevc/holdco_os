@@ -13,7 +13,7 @@ import {
   sourceSystem,
 } from "./_shared";
 import { entity, organization } from "./core";
-import { client, project, resource } from "./phase1";
+import { client, indirectCode, project, resource } from "./phase1";
 
 // ---------------------------------------------------------------------------
 // Activity events (WIS Day-One §3 "Capture" + §4).
@@ -63,6 +63,11 @@ export const activityEvent = pgTable(
     // Resolution attempted at capture time (nullable until/unless it resolves).
     resolvedProjectId: uuid("resolved_project_id").references(() => project.id),
     resolvedClientId: uuid("resolved_client_id").references(() => client.id),
+    // Set when a source_ref_rule charges this kind of event to indirect time
+    // (BD, admin, personal). Mutually exclusive with a resolved project.
+    resolvedIndirectCodeId: uuid("resolved_indirect_code_id").references(
+      () => indirectCode.id,
+    ),
     resolutionConfidence: signalConfidence("resolution_confidence"),
     // Which crosswalk rule fired, for the evidence line (nullable / "none").
     matchedBy: text("matched_by"),

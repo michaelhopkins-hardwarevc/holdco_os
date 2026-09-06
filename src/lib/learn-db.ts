@@ -5,6 +5,7 @@ import {
   crosswalkParty,
   crosswalkProject,
   project,
+  sourceRefRule,
 } from "@/db/schema";
 import type { CaptureActor } from "@/lib/capture-db";
 import type { QueryDb } from "@/lib/queries";
@@ -13,12 +14,22 @@ import { parseSourceRef } from "@/lib/source-ref";
 // The "tap once, never asks twice" loop (WIS design: an unresolved event goes
 // to a queue where a human taps the right project once, and that answer
 // becomes a rule). A correction at confirm time, or a mapping made in the
-// queue, writes a crosswalk row for the source ref and re-resolves every event
-// that carried it. Existing mappings are never overwritten silently: a ref that
-// already points somewhere is left alone (the queue shows it for review).
+// queue, writes the answer down and re-resolves every event that carried the
+// same source ref. Two stores:
+//   - crosswalk_project / crosswalk_party: the structural mapping (a board or
+//     deal IS this project; a domain IS this client). Written for project
+//     answers when the slot is free; never overwritten silently.
+//   - source_ref_rule: the explicit per-ref answer (project, indirect, or
+//     ignore). Checked first at resolution. This is what makes "that domain is
+//     BD" and "ignore gmail.com" possible.
+
+export type LearnTarget =
+  | { kind: "project"; projectId: string }
+  | { kind: "indirect"; indirectCodeId: string }
+  | { kind: "ignore" };
 
 export type LearnOutcome = {
-  mapped: string[]; // refs that became a new crosswalk row
+  mapped: string[]; // refs that got a new crosswalk row or rule
   skipped: string[]; // refs already mapped elsewhere (left as they were)
   reResolved: number; // activity events updated
 };
@@ -32,11 +43,9 @@ async function projectClient(db: QueryDb, entityId: string, projectId: string) {
   return p?.clientId ?? null;
 }
 
-/**
- * Map one source ref to a project (board/deal/folder refs) or, for an email
- * domain, to the project's client. Returns whether a new mapping was written.
- */
-async function mapRefToProject(
+/** Map a ref structurally to a project (board/deal/folder) or, for an email
+ *  domain, to the project's client. Returns whether a new row was written. */
+async function mapRefToProjectCrosswalk(
   db: QueryDb,
   actor: CaptureActor,
   entityId: string,
@@ -49,8 +58,6 @@ async function mapRefToProject(
   if (!clientId) return "invalid";
 
   if (parsed.kind === "email_domain") {
-    // A domain identifies a client, not a project. Map it to the project's
-    // client unless the domain already maps somewhere.
     const [existing] = await db
       .select({ clientId: crosswalkParty.clientId })
       .from(crosswalkParty)
@@ -76,8 +83,6 @@ async function mapRefToProject(
     return "mapped";
   }
 
-  // Board / deal / folder: one crosswalk row per project; set the matching
-  // column if it is empty. If another project already claims this ref, skip.
   const column =
     parsed.kind === "monday_board"
       ? "mondayBoardId"
@@ -88,17 +93,12 @@ async function mapRefToProject(
     .select()
     .from(crosswalkProject)
     .where(
-      and(
-        eq(crosswalkProject.entityId, entityId),
-        isNull(crosswalkProject.deletedAt),
-      ),
+      and(eq(crosswalkProject.entityId, entityId), isNull(crosswalkProject.deletedAt)),
     );
-  const claimed = all.find((r) => r[column] === parsed.value);
-  if (claimed) return claimed.projectId === projectId ? "skipped" : "skipped";
-
+  if (all.some((r) => r[column] === parsed.value)) return "skipped";
   const mine = all.find((r) => r.projectId === projectId);
   if (mine) {
-    if (mine[column]) return "skipped"; // already points at a different ref
+    if (mine[column]) return "skipped";
     await db
       .update(crosswalkProject)
       .set({ [column]: parsed.value, updatedBy: actor.actorId })
@@ -117,38 +117,98 @@ async function mapRefToProject(
   return "mapped";
 }
 
-const MATCHED_BY: Record<string, { matchedBy: string; confidence: "high" | "med" }> = {
-  monday_board: { matchedBy: "monday_board", confidence: "high" },
-  hubspot_deal: { matchedBy: "hubspot_deal", confidence: "high" },
-  sharepoint: { matchedBy: "sharepoint_folder", confidence: "high" },
-  email_domain: { matchedBy: "email_domain", confidence: "med" },
-};
-
-/** Re-resolve every still-unresolved event carrying this ref. */
-export async function reResolveByRef(
+/** Write (or refresh) the explicit per-ref rule. Returns false if a rule for
+ *  this ref already exists with a different answer (never overwritten here;
+ *  delete it on /crosswalks first). */
+async function setSourceRefRule(
   db: QueryDb,
   actor: CaptureActor,
   entityId: string,
   ref: string,
-  target: { projectId: string | null; clientId: string },
-): Promise<number> {
-  const parsed = parseSourceRef(ref);
-  if (!parsed) return 0;
-  const m = MATCHED_BY[parsed.kind];
-  const rows = await db
-    .update(activityEvent)
-    .set({
-      resolvedProjectId: target.projectId,
-      resolvedClientId: target.clientId,
-      resolutionConfidence: m.confidence,
-      matchedBy: m.matchedBy,
+  target: LearnTarget,
+): Promise<boolean> {
+  const [existing] = await db
+    .select()
+    .from(sourceRefRule)
+    .where(
+      and(
+        eq(sourceRefRule.entityId, entityId),
+        eq(sourceRefRule.sourceRef, ref),
+        isNull(sourceRefRule.deletedAt),
+      ),
+    )
+    .limit(1);
+  const values = {
+    kind: target.kind,
+    projectId: target.kind === "project" ? target.projectId : null,
+    indirectCodeId: target.kind === "indirect" ? target.indirectCodeId : null,
+  };
+  if (existing) {
+    const same =
+      existing.kind === values.kind &&
+      existing.projectId === values.projectId &&
+      existing.indirectCodeId === values.indirectCodeId;
+    return same;
+  }
+  await db
+    .insert(sourceRefRule)
+    .values({
+      organizationId: actor.orgId,
+      entityId,
+      sourceRef: ref,
+      ...values,
+      createdBy: actor.actorId,
       updatedBy: actor.actorId,
     })
+    .onConflictDoUpdate({
+      target: [sourceRefRule.entityId, sourceRefRule.sourceRef],
+      set: { ...values, deletedAt: null, updatedBy: actor.actorId },
+    });
+  return true;
+}
+
+/** Re-resolve every still-unplaced event carrying this ref to the answer. */
+export async function reResolveByRule(
+  db: QueryDb,
+  actor: CaptureActor,
+  entityId: string,
+  ref: string,
+  target: LearnTarget,
+): Promise<number> {
+  const clientId =
+    target.kind === "project" ? await projectClient(db, entityId, target.projectId) : null;
+  const set =
+    target.kind === "project"
+      ? {
+          resolvedProjectId: target.projectId,
+          resolvedClientId: clientId,
+          resolvedIndirectCodeId: null,
+          resolutionConfidence: "high" as const,
+          matchedBy: "rule_project",
+        }
+      : target.kind === "indirect"
+        ? {
+            resolvedProjectId: null,
+            resolvedIndirectCodeId: target.indirectCodeId,
+            resolutionConfidence: "high" as const,
+            matchedBy: "rule_indirect",
+          }
+        : {
+            resolvedProjectId: null,
+            resolvedClientId: null,
+            resolvedIndirectCodeId: null,
+            resolutionConfidence: null,
+            matchedBy: "ignored",
+          };
+  const rows = await db
+    .update(activityEvent)
+    .set({ ...set, updatedBy: actor.actorId })
     .where(
       and(
         eq(activityEvent.entityId, entityId),
         eq(activityEvent.sourceRef, ref),
         isNull(activityEvent.resolvedProjectId),
+        isNull(activityEvent.resolvedIndirectCodeId),
         isNull(activityEvent.deletedAt),
       ),
     )
@@ -157,30 +217,34 @@ export async function reResolveByRef(
 }
 
 /**
- * Learn from a person confirming a block to a project: each of the block's
- * source refs becomes a crosswalk row (if free), and unresolved events carrying
- * those refs are re-resolved so the next draft charges them by itself.
+ * Learn from a person's answer for a block's source refs: write the rule (and,
+ * for a project answer, the structural crosswalk when its slot is free), then
+ * re-resolve unplaced events so the next draft charges them by itself.
  */
 export async function learnFromAcceptance(
   db: QueryDb,
   actor: CaptureActor,
-  params: { entityId: string; hints: string[]; projectId: string },
+  params: { entityId: string; hints: string[]; target: LearnTarget },
 ): Promise<LearnOutcome> {
   const out: LearnOutcome = { mapped: [], skipped: [], reResolved: 0 };
-  const clientId = await projectClient(db, params.entityId, params.projectId);
-  if (!clientId) return out;
+  const { entityId, target } = params;
 
   for (const ref of params.hints) {
-    const r = await mapRefToProject(db, actor, params.entityId, ref, params.projectId);
-    if (r === "mapped") {
+    if (!parseSourceRef(ref)) continue;
+    let wrote = false;
+    if (target.kind === "project") {
+      const r = await mapRefToProjectCrosswalk(db, actor, entityId, ref, target.projectId);
+      if (r === "invalid") continue;
+      wrote = r === "mapped";
+    }
+    // The explicit rule is written for every kind (it is what "indirect" and
+    // "ignore" rely on, and it makes a project answer authoritative).
+    const ruleOk = await setSourceRefRule(db, actor, entityId, ref, target);
+    if (ruleOk) wrote = true;
+    if (wrote) {
       out.mapped.push(ref);
-      const parsed = parseSourceRef(ref)!;
-      out.reResolved += await reResolveByRef(db, actor, params.entityId, ref, {
-        // A domain reaches the client only; ids reach the project.
-        projectId: parsed.kind === "email_domain" ? null : params.projectId,
-        clientId,
-      });
-    } else if (r === "skipped") {
+      out.reResolved += await reResolveByRule(db, actor, entityId, ref, target);
+    } else {
       out.skipped.push(ref);
     }
   }
@@ -188,18 +252,29 @@ export async function learnFromAcceptance(
   if (out.mapped.length > 0) {
     await db.insert(auditLog).values({
       organizationId: actor.orgId,
-      entityId: params.entityId,
-      tableName: "crosswalk",
-      recordId: params.projectId,
+      entityId,
+      tableName: "source_ref_rule",
+      recordId: entityId,
       action: "learn",
       actorId: actor.actorId,
-      after: { mapped: out.mapped, reResolved: out.reResolved },
+      after: { target, mapped: out.mapped, reResolved: out.reResolved },
     });
   }
   return out;
 }
 
-/** Queue action: map a ref straight to a project (same rules as learning). */
+/** Queue action: place one ref (project, indirect, or ignore). */
+export async function mapSourceRef(
+  db: QueryDb,
+  actor: CaptureActor,
+  entityId: string,
+  ref: string,
+  target: LearnTarget,
+): Promise<LearnOutcome> {
+  return learnFromAcceptance(db, actor, { entityId, hints: [ref], target });
+}
+
+/** Back-compat for the earlier project-only API. */
 export async function mapSourceRefToProject(
   db: QueryDb,
   actor: CaptureActor,
@@ -207,5 +282,5 @@ export async function mapSourceRefToProject(
   ref: string,
   projectId: string,
 ): Promise<LearnOutcome> {
-  return learnFromAcceptance(db, actor, { entityId, hints: [ref], projectId });
+  return mapSourceRef(db, actor, entityId, ref, { kind: "project", projectId });
 }
