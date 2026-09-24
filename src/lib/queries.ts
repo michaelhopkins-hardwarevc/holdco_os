@@ -741,3 +741,46 @@ export function summarizePhases(phases: PhaseBudget[]): {
   }
   return { totalHours, totalAmount };
 }
+
+/**
+ * The connected-tool evidence behind a week's confirmed time, per time entry.
+ * Chain: time_entry <- signal (timeEntryId) <- activity_event (signalId). This
+ * is what lets the daily note sit next to the meetings, emails and board items
+ * that produced it, instead of being a free-text box with no provenance.
+ */
+export function getWeekEvidence(
+  db: QueryDb,
+  entityId: string,
+  resourceId: string,
+  start: string,
+  end: string,
+) {
+  return db
+    .select({
+      timeEntryId: signal.timeEntryId,
+      signalId: signal.id,
+      signalEvidence: signal.evidence,
+      signalProvenance: signal.provenance,
+      confidence: signal.confidence,
+      sourceSystem: activityEvent.sourceSystem,
+      eventType: activityEvent.eventType,
+      occurredAt: activityEvent.occurredAt,
+      endedAt: activityEvent.endedAt,
+      subject: activityEvent.subject,
+      counterparty: activityEvent.counterparty,
+      sourceRef: activityEvent.sourceRef,
+      matchedBy: activityEvent.matchedBy,
+    })
+    .from(signal)
+    .leftJoin(activityEvent, eq(activityEvent.signalId, signal.id))
+    .where(
+      and(
+        eq(signal.entityId, entityId),
+        eq(signal.resourceId, resourceId),
+        gte(signal.workDate, start),
+        lte(signal.workDate, end),
+        isNotNull(signal.timeEntryId),
+      ),
+    )
+    .orderBy(asc(activityEvent.occurredAt));
+}

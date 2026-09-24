@@ -29,6 +29,7 @@ import {
   getResource,
   getResourceForUser,
   getWeekEntries,
+  getWeekEvidence,
   listEntityPhases,
   listIndirectCodes,
   listOpenSignals,
@@ -114,6 +115,15 @@ export default async function TimesheetPage({
         week.start,
         week.end,
       ),
+      // The connected-tool trail behind each confirmed entry, so the daily
+      // note sits next to the meetings/emails/board items that produced it.
+      evidence: await getWeekEvidence(
+        tx,
+        active.entityId,
+        res.id,
+        week.start,
+        week.end,
+      ),
     };
   });
 
@@ -130,10 +140,30 @@ export default async function TimesheetPage({
     );
   }
 
-  const { res, entries, projects, phases, codes, signals, teamResources } =
+  const {
+    res,
+    entries,
+    projects,
+    phases,
+    codes,
+    signals,
+    evidence,
+    teamResources,
+  } =
     data;
   const isOwn = res.userId === ctx.appUser.id;
   const canOverride = isManager;
+
+  // The connected-tool trail, grouped under the entry it produced, so a daily
+  // note shows the meetings/emails/board items behind it instead of standing
+  // alone as free text.
+  const evidenceByEntry = new Map<string, typeof evidence>();
+  for (const ev of evidence) {
+    if (!ev.timeEntryId) continue;
+    const list = evidenceByEntry.get(ev.timeEntryId) ?? [];
+    list.push(ev);
+    evidenceByEntry.set(ev.timeEntryId, list);
+  }
 
   // Consistency nudges (Signals step 3): for signals tied to a shared meeting,
   // see how teammates charged the same meeting and flag a divergent guess.
@@ -530,6 +560,9 @@ export default async function TimesheetPage({
                             .filter(Boolean)
                             .join(" · ")
                         : (e.indirectCodeLabel ?? "Indirect");
+                    const evs = evidenceByEntry.get(e.id) ?? [];
+                    const provenance = evs.find((x) => x.signalProvenance)
+                      ?.signalProvenance;
                     return (
                       <form
                         key={e.id}
@@ -549,14 +582,42 @@ export default async function TimesheetPage({
                             {Number(e.hours).toFixed(2)}h
                           </span>
                         </div>
-                        <textarea
-                          name="notes"
-                          defaultValue={e.notes ?? ""}
-                          rows={2}
-                          readOnly={!editable}
-                          placeholder="What was done, in the words you would bill it with."
-                          className="border-line bg-steel text-bone w-full rounded-md border px-3 py-2 text-sm"
-                        />
+                        <div className="flex w-full flex-col gap-1.5">
+                          {evs.length === 0 ? (
+                            <p className="text-alum-2 text-xs italic">
+                              Entered by hand · no connected source
+                            </p>
+                          ) : (
+                            <ul className="flex flex-col gap-0.5">
+                              {evs.map((ev, n) => (
+                                <li
+                                  key={`${ev.signalId}-${n}`}
+                                  className="text-alum-2 text-xs"
+                                >
+                                  <span className="text-bone">
+                                    {ev.subject ?? ev.signalEvidence}
+                                  </span>
+                                  {ev.counterparty ? ` · ${ev.counterparty}` : ""}
+                                  {ev.sourceSystem ? ` · ${ev.sourceSystem}` : ""}
+                                  {ev.sourceRef ? ` · ${ev.sourceRef}` : ""}
+                                </li>
+                              ))}
+                              {provenance && (
+                                <li className="text-alum-2 text-xs italic">
+                                  {provenance}
+                                </li>
+                              )}
+                            </ul>
+                          )}
+                          <textarea
+                            name="notes"
+                            defaultValue={e.notes ?? ""}
+                            rows={2}
+                            readOnly={!editable}
+                            placeholder="What was done, in the words you would bill it with."
+                            className="border-line bg-steel text-bone w-full rounded-md border px-3 py-2 text-sm"
+                          />
+                        </div>
                         {editable && (
                           <Button type="submit" variant="outline" size="sm">
                             Save
