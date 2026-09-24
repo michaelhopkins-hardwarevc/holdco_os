@@ -154,6 +154,14 @@ export default async function TimesheetPage({
   const isOwn = res.userId === ctx.appUser.id;
   const canOverride = isManager;
 
+  // Identity of the server-side time for this week. Used to key the grid so it
+  // re-seeds when hours actually change (a confirmed block, an added entry) and
+  // not when only a note changes.
+  const gridKey = `${week.start}|${entries
+    .map((e) => `${e.id}:${e.hours}:${e.status}`)
+    .sort()
+    .join(",")}`;
+
   // The connected-tool trail, grouped under the entry it produced, so a daily
   // note shows the meetings/emails/board items behind it instead of standing
   // alone as free text.
@@ -510,7 +518,15 @@ export default async function TimesheetPage({
         </section>
       )}
 
+      {/* The grid is a client component seeded from `initialRows`, and React
+          does not re-initialise state when props change. Without a key tied to
+          the server data, confirming a block (which revalidates this page and
+          adds hours) left the grid showing stale hours while the server-rendered
+          notes below updated — the hours looked like they never landed. Keying
+          on the entries' identity/hours/status remounts the grid exactly when
+          the underlying time changes, and never while someone is just typing. */}
       <TimesheetGrid
+        key={gridKey}
         entityId={active.entityId}
         resourceId={res.id}
         weekStart={week.start}
