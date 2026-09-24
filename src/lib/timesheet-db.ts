@@ -315,15 +315,20 @@ export async function transitionTimesheetWeek(
 }
 
 /**
- * Set the note on one time entry. The note carries the work narrative through
- * to the invoice line, so a person refines it in their own week. Empty stores
- * as null. Throws if the entry's week is locked (submitted or invoiced).
+ * Edit one time entry in place: its hours, its note, or both. This is the
+ * day-by-project audit surface — the machine's estimate is a starting point,
+ * and the person closest to the work corrects the number and says what it was
+ * for in the same place.
+ *
+ * Amounts recompute from the entry's own stored rates, so a manager's rate
+ * override is never clobbered by an hours edit. Empty note stores as null.
+ * Throws if the entry's week is locked (submitted or invoiced).
  */
-export async function updateEntryNotes(
+export async function updateEntry(
   db: QueryDb,
   actor: Actor,
   entryId: string,
-  notes: string,
+  input: { hours?: number; notes?: string },
 ): Promise<void> {
   const [entry] = await db
     .select()
@@ -349,11 +354,38 @@ export async function updateEntryNotes(
     throw new TimesheetLockedError();
   }
 
-  const clean = notes.trim() || null;
-  await db
-    .update(timeEntry)
-    .set({ notes: clean, updatedBy: actor.actorId })
-    .where(eq(timeEntry.id, entryId));
+  const patch: Record<string, unknown> = { updatedBy: actor.actorId };
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+
+  if (input.notes !== undefined) {
+    const clean = input.notes.trim() || null;
+    before.notes = entry.notes;
+    after.notes = clean;
+    patch.notes = clean;
+  }
+
+  if (input.hours !== undefined) {
+    if (!Number.isFinite(input.hours) || input.hours < 0) {
+      throw new Error("Hours must be zero or more.");
+    }
+    const hours = Math.round(input.hours * 100) / 100;
+    const amounts = computeAmounts({
+      hours,
+      billable: entry.billable,
+      billRate: entry.billRate,
+      costRate: entry.costRate,
+    });
+    before.hours = entry.hours;
+    after.hours = hours.toFixed(2);
+    patch.hours = hours.toFixed(2);
+    patch.billableAmount = amounts.billableAmount;
+    patch.costAmount = amounts.costAmount;
+  }
+
+  if (Object.keys(after).length === 0) return;
+
+  await db.update(timeEntry).set(patch).where(eq(timeEntry.id, entryId));
 
   await db.insert(auditLog).values({
     organizationId: actor.orgId,
@@ -362,7 +394,7 @@ export async function updateEntryNotes(
     recordId: entryId,
     action: "update",
     actorId: actor.actorId,
-    before: { notes: entry.notes },
-    after: { notes: clean },
+    before,
+    after,
   });
 }

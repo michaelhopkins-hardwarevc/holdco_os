@@ -15,7 +15,7 @@ import {
   applyTimesheet,
   submitTimesheetWeek,
   transitionTimesheetWeek,
-  updateEntryNotes,
+  updateEntry,
 } from "@/lib/timesheet-db";
 import type { SaveTimesheetInput } from "@/lib/timesheet";
 
@@ -144,21 +144,33 @@ export async function approveWeeks(formData: FormData): Promise<void> {
   revalidatePath("/timesheet");
 }
 
-// Daily notes: a person refines the narrative on one entry in their own week.
-// The note is what a client invoice line ends up saying, so it is worth getting
-// right at source rather than rewriting at billing time.
-export async function saveEntryNote(formData: FormData): Promise<void> {
+// The day-by-project audit row: correct the hours and say what the time was
+// for, in one place. The machine's estimate is a starting point; the person
+// closest to the work has the last word, and the note is what a client invoice
+// line ends up saying.
+export async function saveEntryDetail(formData: FormData): Promise<void> {
   const entityId = String(formData.get("entityId") ?? "");
   const resourceId = String(formData.get("resourceId") ?? "");
   const entryId = String(formData.get("entryId") ?? "");
   const notes = String(formData.get("notes") ?? "");
+  const hoursRaw = formData.get("hours");
   const { ctx } = await authorizeTimesheet(entityId, resourceId);
   if (!entryId) throw new Error("Missing entry.");
-  await updateEntryNotes(
+
+  const input: { hours?: number; notes?: string } = { notes };
+  if (hoursRaw !== null && String(hoursRaw).trim() !== "") {
+    const hours = Number(hoursRaw);
+    if (!Number.isFinite(hours) || hours < 0) {
+      throw new Error("Hours must be zero or more.");
+    }
+    input.hours = hours;
+  }
+
+  await updateEntry(
     db,
     { orgId: ctx.appUser.organizationId, actorId: ctx.appUser.id },
     entryId,
-    notes,
+    input,
   );
   revalidatePath("/timesheet");
 }

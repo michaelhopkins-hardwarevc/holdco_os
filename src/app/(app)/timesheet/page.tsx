@@ -20,7 +20,7 @@ import {
 } from "@/lib/actions/signals";
 import {
   addTimeEntry,
-  saveEntryNote,
+  saveEntryDetail,
   submitWeek,
 } from "@/lib/actions/timesheet";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
@@ -582,7 +582,7 @@ export default async function TimesheetPage({
                     return (
                       <form
                         key={e.id}
-                        action={saveEntryNote}
+                        action={saveEntryDetail}
                         className="flex flex-col gap-2 sm:flex-row sm:items-start"
                       >
                         <input
@@ -592,11 +592,21 @@ export default async function TimesheetPage({
                         />
                         <input type="hidden" name="resourceId" value={res.id} />
                         <input type="hidden" name="entryId" value={e.id} />
-                        <div className="text-bone w-56 shrink-0 pt-2 text-sm">
-                          {label}{" "}
-                          <span className="text-alum-2">
-                            {Number(e.hours).toFixed(2)}h
-                          </span>
+                        <div className="w-56 shrink-0 pt-1">
+                          <div className="text-bone text-sm">{label}</div>
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              name="hours"
+                              step="0.25"
+                              min="0"
+                              defaultValue={Number(e.hours).toFixed(2)}
+                              readOnly={!editable}
+                              aria-label={`Hours for ${label} on ${d}`}
+                              className="border-line bg-steel text-bone w-20 rounded-md border px-2 py-1 text-sm"
+                            />
+                            <span className="text-alum-2 text-xs">hours</span>
+                          </div>
                         </div>
                         <div className="flex w-full flex-col gap-1.5">
                           {evs.length === 0 ? (

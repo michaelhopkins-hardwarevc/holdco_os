@@ -20,7 +20,7 @@ import {
   submitTimesheetWeek,
   TimesheetLockedError,
   transitionTimesheetWeek,
-  updateEntryNotes,
+  updateEntry,
 } from "@/lib/timesheet-db";
 
 let pg: TestDb["pg"];
@@ -322,7 +322,7 @@ describe("submit / approve", () => {
 
 // Daily notes (M5a): the note carries the work narrative to the invoice line,
 // so a person refines it in their own week. Locked weeks stay locked.
-describe("updateEntryNotes", () => {
+describe("updateEntry", () => {
   async function anEntry(s: Awaited<ReturnType<typeof setup>>) {
     await applyTimesheet(db, s.actor, s.rates, {
       entityId: s.entityId,
@@ -349,7 +349,7 @@ describe("updateEntryNotes", () => {
     const s = await setup();
     const e = await anEntry(s);
 
-    await updateEntryNotes(db, s.actor, e.id, "  Packaging review with vendor  ");
+    await updateEntry(db, s.actor, e.id, { notes: "  Packaging review with vendor  " });
 
     const [after] = await db
       .select()
@@ -367,8 +367,8 @@ describe("updateEntryNotes", () => {
   it("stores an emptied note as null", async () => {
     const s = await setup();
     const e = await anEntry(s);
-    await updateEntryNotes(db, s.actor, e.id, "something");
-    await updateEntryNotes(db, s.actor, e.id, "   ");
+    await updateEntry(db, s.actor, e.id, { notes: "something" });
+    await updateEntry(db, s.actor, e.id, { notes: "   " });
     const [after] = await db
       .select()
       .from(timeEntry)
@@ -381,7 +381,31 @@ describe("updateEntryNotes", () => {
     const e = await anEntry(s);
     await submitTimesheetWeek(db, s.actor, s.entityId, s.resourceId, WEEK_START);
     await expect(
-      updateEntryNotes(db, s.actor, e.id, "too late"),
+      updateEntry(db, s.actor, e.id, { notes: "too late" }),
     ).rejects.toBeInstanceOf(TimesheetLockedError);
+  });
+
+  it("edits hours and recomputes amounts from the entry's own rates", async () => {
+    const s = await setup();
+    const e = await anEntry(s);
+
+    await updateEntry(db, s.actor, e.id, { hours: 6.5, notes: "Ran long" });
+
+    const [after] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, e.id));
+    expect(Number(after.hours)).toBe(6.5);
+    expect(after.notes).toBe("Ran long");
+    expect(after.billableAmount).toBe(6.5 * 22500);
+    expect(after.costAmount).toBe(6.5 * 9000);
+  });
+
+  it("rejects negative hours", async () => {
+    const s = await setup();
+    const e = await anEntry(s);
+    await expect(
+      updateEntry(db, s.actor, e.id, { hours: -1 }),
+    ).rejects.toThrow();
   });
 });
