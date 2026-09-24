@@ -307,3 +307,88 @@ describe("dismissSignal", () => {
     expect(await db.select().from(timeEntry)).toHaveLength(0);
   });
 });
+
+// Daily notes (M5a): the draft engine already writes a plain-language evidence
+// line for every block. Accepting a block must carry that onto the time entry
+// so the narrative survives to the invoice, instead of being thrown away.
+describe("acceptSignal notes", () => {
+  it("carries the block's evidence onto the time entry as a note", async () => {
+    const s = await setup();
+    const sig = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "4.00",
+      billable: true,
+      evidence: "Design review with Acme",
+    });
+
+    const entryId = await acceptSignal(db, s.actor, s.rates, sig);
+    const [entry] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, entryId!));
+    expect(entry.notes).toBe("Design review with Acme");
+  });
+
+  it("appends evidence when another block folds into the same day and charge", async () => {
+    const s = await setup();
+    const a = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "2.00",
+      billable: true,
+      evidence: "Design review",
+    });
+    const b = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "1.50",
+      billable: true,
+      evidence: "Prototype build",
+    });
+
+    const id1 = await acceptSignal(db, s.actor, s.rates, a);
+    const id2 = await acceptSignal(db, s.actor, s.rates, b);
+    expect(id2).toBe(id1); // folded into the same day + charge
+
+    const [entry] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, id1!));
+    expect(Number(entry.hours)).toBe(3.5);
+    expect(entry.notes).toBe("Design review\nPrototype build");
+  });
+
+  it("does not duplicate an identical evidence line when folding", async () => {
+    const s = await setup();
+    const a = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "2.00",
+      billable: true,
+      evidence: "Standup",
+    });
+    const b = await makeSignal(s, {
+      chargeType: "project",
+      projectId: s.proj.id,
+      phaseId: s.ph.id,
+      proposedHours: "1.00",
+      billable: true,
+      evidence: "Standup",
+    });
+
+    const id1 = await acceptSignal(db, s.actor, s.rates, a);
+    await acceptSignal(db, s.actor, s.rates, b);
+
+    const [entry] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, id1!));
+    expect(Number(entry.hours)).toBe(3);
+    expect(entry.notes).toBe("Standup");
+  });
+});

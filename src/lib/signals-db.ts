@@ -35,6 +35,24 @@ export function weekIsLocked(statuses: string[]): boolean {
 }
 
 /**
+ * A time entry's note carries the block's plain-language evidence, so the
+ * narrative survives to the invoice line instead of being lost at accept.
+ * Folding a second block into the same day + charge appends its line rather
+ * than dropping it; an identical line is never repeated.
+ */
+export function mergeNotes(
+  existing: string | null,
+  incoming: string | null,
+): string | null {
+  const add = (incoming ?? "").trim();
+  const have = (existing ?? "").trim();
+  if (!add) return have || null;
+  if (!have) return add;
+  if (have.split("\n").some((l) => l.trim() === add)) return have;
+  return `${have}\n${add}`;
+}
+
+/**
  * Accept a signal: turn it into (or fold it into) an approved time entry for
  * the resource, mark the signal accepted, link it, and learn from the choice.
  * Idempotent (an accepted signal returns its existing entry). Throws if the
@@ -120,6 +138,7 @@ export async function acceptSignal(
         hours: newHours.toFixed(2),
         billableAmount: amounts.billableAmount,
         costAmount: amounts.costAmount,
+        notes: mergeNotes(match.notes, sig.evidence),
         status: "approved",
         updatedBy: actor.actorId,
       })
@@ -150,7 +169,7 @@ export async function acceptSignal(
         billableAmount: amounts.billableAmount,
         costAmount: amounts.costAmount,
         status: "approved",
-        notes: `From signal: ${sig.evidence}`,
+        notes: mergeNotes(null, sig.evidence),
         createdBy: actor.actorId,
         updatedBy: actor.actorId,
       })
