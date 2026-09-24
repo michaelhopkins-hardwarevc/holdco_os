@@ -370,6 +370,7 @@ export function getWeekEntries(
       billableAmount: timeEntry.billableAmount,
       costAmount: timeEntry.costAmount,
       status: timeEntry.status,
+      notes: timeEntry.notes,
       projectCode: project.code,
       phaseName: phase.name,
       indirectCodeLabel: indirectCode.code,

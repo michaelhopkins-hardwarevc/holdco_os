@@ -18,7 +18,11 @@ import {
   dismissAllSignalsAction,
   dismissSignalAction,
 } from "@/lib/actions/signals";
-import { addTimeEntry, submitWeek } from "@/lib/actions/timesheet";
+import {
+  addTimeEntry,
+  saveEntryNote,
+  submitWeek,
+} from "@/lib/actions/timesheet";
 import { MANAGER_ROLES, requireActiveEntity } from "@/lib/auth";
 import { getOutlookConnection } from "@/lib/integrations/outlook-store";
 import {
@@ -495,6 +499,78 @@ export default async function TimesheetPage({
         phases={phases}
         indirectCodes={codes.map((c) => ({ id: c.id, code: c.code }))}
       />
+
+      {/* Daily notes: the narrative behind the hours. A confirmed block seeds
+          this from its evidence; the person sharpens it here. This is the text
+          a client invoice line carries, so it is worth getting right at source. */}
+      {entries.length > 0 && (
+        <section className="border-line bg-graphite overflow-hidden rounded-xl border">
+          <div className="border-line bg-steel flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+            <div className="text-bone flex items-center gap-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">
+              <span className="bg-cyan h-[7px] w-[7px] rounded-full" />
+              Daily notes
+              <span className="text-alum-2 normal-case">
+                what a client invoice line will say
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-5 px-4 py-4">
+            {week.days.map((d, i) => {
+              const dayEntries = entries.filter((e) => e.workDate === d);
+              if (dayEntries.length === 0) return null;
+              return (
+                <div key={d} className="flex flex-col gap-2">
+                  <div className="text-alum-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">
+                    {dayLabels[i]}
+                  </div>
+                  {dayEntries.map((e) => {
+                    const label =
+                      e.chargeType === "project"
+                        ? [e.projectCode, e.phaseName]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : (e.indirectCodeLabel ?? "Indirect");
+                    return (
+                      <form
+                        key={e.id}
+                        action={saveEntryNote}
+                        className="flex flex-col gap-2 sm:flex-row sm:items-start"
+                      >
+                        <input
+                          type="hidden"
+                          name="entityId"
+                          value={active.entityId}
+                        />
+                        <input type="hidden" name="resourceId" value={res.id} />
+                        <input type="hidden" name="entryId" value={e.id} />
+                        <div className="text-bone w-56 shrink-0 pt-2 text-sm">
+                          {label}{" "}
+                          <span className="text-alum-2">
+                            {Number(e.hours).toFixed(2)}h
+                          </span>
+                        </div>
+                        <textarea
+                          name="notes"
+                          defaultValue={e.notes ?? ""}
+                          rows={2}
+                          readOnly={!editable}
+                          placeholder="What was done, in the words you would bill it with."
+                          className="border-line bg-steel text-bone w-full rounded-md border px-3 py-2 text-sm"
+                        />
+                        {editable && (
+                          <Button type="submit" variant="outline" size="sm">
+                            Save
+                          </Button>
+                        )}
+                      </form>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {editable && (
         <form

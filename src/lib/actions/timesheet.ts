@@ -15,6 +15,7 @@ import {
   applyTimesheet,
   submitTimesheetWeek,
   transitionTimesheetWeek,
+  updateEntryNotes,
 } from "@/lib/timesheet-db";
 import type { SaveTimesheetInput } from "@/lib/timesheet";
 
@@ -140,5 +141,24 @@ export async function approveWeeks(formData: FormData): Promise<void> {
     await transitionTimesheetWeek(db, actor, entityId, w.resourceId, w.weekStart, "approved", "approve", null);
   }
   revalidatePath("/approvals");
+  revalidatePath("/timesheet");
+}
+
+// Daily notes: a person refines the narrative on one entry in their own week.
+// The note is what a client invoice line ends up saying, so it is worth getting
+// right at source rather than rewriting at billing time.
+export async function saveEntryNote(formData: FormData): Promise<void> {
+  const entityId = String(formData.get("entityId") ?? "");
+  const resourceId = String(formData.get("resourceId") ?? "");
+  const entryId = String(formData.get("entryId") ?? "");
+  const notes = String(formData.get("notes") ?? "");
+  const { ctx } = await authorizeTimesheet(entityId, resourceId);
+  if (!entryId) throw new Error("Missing entry.");
+  await updateEntryNotes(
+    db,
+    { orgId: ctx.appUser.organizationId, actorId: ctx.appUser.id },
+    entryId,
+    notes,
+  );
   revalidatePath("/timesheet");
 }

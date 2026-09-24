@@ -313,3 +313,56 @@ export async function transitionTimesheetWeek(
 
   return affected.length;
 }
+
+/**
+ * Set the note on one time entry. The note carries the work narrative through
+ * to the invoice line, so a person refines it in their own week. Empty stores
+ * as null. Throws if the entry's week is locked (submitted or invoiced).
+ */
+export async function updateEntryNotes(
+  db: QueryDb,
+  actor: Actor,
+  entryId: string,
+  notes: string,
+): Promise<void> {
+  const [entry] = await db
+    .select()
+    .from(timeEntry)
+    .where(and(eq(timeEntry.id, entryId), isNull(timeEntry.deletedAt)));
+  if (!entry) return;
+
+  const week = getWeek(entry.workDate);
+  const weekEntries = await db
+    .select({ status: timeEntry.status })
+    .from(timeEntry)
+    .where(
+      and(
+        eq(timeEntry.resourceId, entry.resourceId),
+        gte(timeEntry.workDate, week.start),
+        lte(timeEntry.workDate, week.end),
+        isNull(timeEntry.deletedAt),
+      ),
+    );
+  if (
+    weekEntries.some((e) => e.status === "submitted" || e.status === "invoiced")
+  ) {
+    throw new TimesheetLockedError();
+  }
+
+  const clean = notes.trim() || null;
+  await db
+    .update(timeEntry)
+    .set({ notes: clean, updatedBy: actor.actorId })
+    .where(eq(timeEntry.id, entryId));
+
+  await db.insert(auditLog).values({
+    organizationId: actor.orgId,
+    entityId: entry.entityId,
+    tableName: "time_entry",
+    recordId: entryId,
+    action: "update",
+    actorId: actor.actorId,
+    before: { notes: entry.notes },
+    after: { notes: clean },
+  });
+}

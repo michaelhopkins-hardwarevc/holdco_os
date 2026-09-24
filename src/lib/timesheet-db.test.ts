@@ -20,6 +20,7 @@ import {
   submitTimesheetWeek,
   TimesheetLockedError,
   transitionTimesheetWeek,
+  updateEntryNotes,
 } from "@/lib/timesheet-db";
 
 let pg: TestDb["pg"];
@@ -316,5 +317,71 @@ describe("submit / approve", () => {
       .where(eq(auditLog.action, "approve"));
     expect(audits).toHaveLength(1);
     expect(audits[0].tableName).toBe("time_entry");
+  });
+});
+
+// Daily notes (M5a): the note carries the work narrative to the invoice line,
+// so a person refines it in their own week. Locked weeks stay locked.
+describe("updateEntryNotes", () => {
+  async function anEntry(s: Awaited<ReturnType<typeof setup>>) {
+    await applyTimesheet(db, s.actor, s.rates, {
+      entityId: s.entityId,
+      resourceId: s.resourceId,
+      weekStart: WEEK_START,
+      cells: [
+        {
+          chargeType: "project",
+          projectId: s.projectId,
+          phaseId: s.phaseId,
+          date: "2026-07-27",
+          hours: 4,
+        },
+      ],
+    });
+    const [e] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.resourceId, s.resourceId));
+    return e;
+  }
+
+  it("sets the note (trimmed) and records the change in the audit log", async () => {
+    const s = await setup();
+    const e = await anEntry(s);
+
+    await updateEntryNotes(db, s.actor, e.id, "  Packaging review with vendor  ");
+
+    const [after] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, e.id));
+    expect(after.notes).toBe("Packaging review with vendor");
+
+    const logs = await db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.recordId, e.id), eq(auditLog.action, "update")));
+    expect(logs.length).toBeGreaterThan(0);
+  });
+
+  it("stores an emptied note as null", async () => {
+    const s = await setup();
+    const e = await anEntry(s);
+    await updateEntryNotes(db, s.actor, e.id, "something");
+    await updateEntryNotes(db, s.actor, e.id, "   ");
+    const [after] = await db
+      .select()
+      .from(timeEntry)
+      .where(eq(timeEntry.id, e.id));
+    expect(after.notes).toBeNull();
+  });
+
+  it("refuses to edit a note in a locked (submitted) week", async () => {
+    const s = await setup();
+    const e = await anEntry(s);
+    await submitTimesheetWeek(db, s.actor, s.entityId, s.resourceId, WEEK_START);
+    await expect(
+      updateEntryNotes(db, s.actor, e.id, "too late"),
+    ).rejects.toBeInstanceOf(TimesheetLockedError);
   });
 });
