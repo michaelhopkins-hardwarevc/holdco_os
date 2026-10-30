@@ -491,3 +491,9 @@ works).
   exists in the org, every option in that file is aspirational, so create the
   category in Xero BEFORE running `--apply`. A later improvement is to read the
   options from the Xero API through the existing OAuth connection.
+- **Creating the Xero options is scripted too** (`scripts/xero-create-tracking-options.ts`,
+  `npm run xero:options`), same dry-run-by-default shape. It uses the app's own
+  stored OAuth connection, which already carries `accounting.settings`. Blocked
+  2026-10-30: `TOKEN_ENCRYPTION_KEY` has changed since the Xero token was saved
+  on 2026-08-10, so the stored refresh token cannot be decrypted and the
+  connection has to be re-established before the script can run.

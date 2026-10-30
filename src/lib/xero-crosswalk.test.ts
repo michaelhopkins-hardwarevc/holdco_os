@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  diffTrackingOptions,
   type BackfillProject,
   type ExistingCrosswalk,
   planXeroCrosswalk,
@@ -235,7 +236,9 @@ describe("planXeroCrosswalk with an explicit mapping", () => {
       xeroOptions: ["P-6025", "P-6023"],
       mapping: { "P-7001": "P-6025" },
     });
-    expect(plan.map((a) => [a.code, a.kind === "insert" ? a.option : null])).toEqual([
+    expect(
+      plan.map((a) => [a.code, a.kind === "insert" ? a.option : null]),
+    ).toEqual([
       ["P-6023", "P-6023"],
       ["P-7001", "P-6025"],
     ]);
@@ -243,8 +246,37 @@ describe("planXeroCrosswalk with an explicit mapping", () => {
 
   it("reports a mapping row that matches no project", () => {
     expect(
-      unusedMappingKeys([P("P-7001")], { "P-7001": "P-6025", "P-9999": "P-0001" }),
+      unusedMappingKeys([P("P-7001")], {
+        "P-7001": "P-6025",
+        "P-9999": "P-0001",
+      }),
     ).toEqual(["P-9999"]);
+  });
+});
+
+describe("diffTrackingOptions", () => {
+  it("returns only the options Xero is missing", () => {
+    expect(
+      diffTrackingOptions(["P-6025", "P-6026", "P-6027"], ["P-6026"]),
+    ).toEqual(["P-6025", "P-6027"]);
+  });
+
+  it("treats case and padding as already present, so no near-duplicates", () => {
+    expect(diffTrackingOptions([" p-6025 "], ["P-6025"])).toEqual([]);
+  });
+
+  it("de-duplicates within the wanted list", () => {
+    expect(diffTrackingOptions(["P-6025", "p-6025", "P-6025"], [])).toEqual([
+      "P-6025",
+    ]);
+  });
+
+  it("ignores blank entries", () => {
+    expect(diffTrackingOptions(["", "  ", "P-6025"], [])).toEqual(["P-6025"]);
+  });
+
+  it("returns nothing when Xero already has everything", () => {
+    expect(diffTrackingOptions(["P-6025"], ["P-6025", "P-6099"])).toEqual([]);
   });
 });
 

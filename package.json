@@ -20,7 +20,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
     "setup:storage": "tsx scripts/setup-storage.ts",
-    "xero:crosswalk": "tsx scripts/backfill-xero-crosswalk.ts"
+    "xero:crosswalk": "tsx scripts/backfill-xero-crosswalk.ts",
+    "xero:options": "tsx scripts/xero-create-tracking-options.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

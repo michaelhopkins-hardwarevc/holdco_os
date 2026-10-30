@@ -100,6 +100,23 @@ export function resolveOption(
   return loose ? loose.trim() : null;
 }
 
+/**
+ * Options we want on the Xero category that are not already there. Compared
+ * loosely on case and padding so we never create "P-6025" next to "p-6025",
+ * de-duplicated, and returned in the caller's spelling.
+ */
+export function diffTrackingOptions(want: string[], have: string[]): string[] {
+  const present = new Set(have.map(norm));
+  const out: string[] = [];
+  for (const w of want) {
+    const t = w.trim();
+    if (!t || present.has(norm(t))) continue;
+    present.add(norm(t)); // dedupe within `want` too
+    out.push(t);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
 /** Mapping keys matching no project: a typo, or a project not created yet. */
 export function unusedMappingKeys(
   projects: BackfillProject[],
