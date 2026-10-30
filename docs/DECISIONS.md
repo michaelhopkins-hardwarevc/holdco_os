@@ -456,3 +456,38 @@ works).
   module). Per the handoff's own rule ("no new glyphs; use a mono text label"),
   nav uses text labels + a tick marker and the logo is a placeholder reticle.
   Drop `public/brand/logo.svg` + `public/brand/icons/*.svg` in to upgrade.
+
+## Xero tracking crosswalk backfill (2026-10-30)
+
+- **Tracking categories, not Xero Projects.** Project P&L in Xero comes from a
+  free tracking category named `Project` whose options are our project codes.
+  Xero Projects (the paid add-on) is deliberately NOT used: it carries its own
+  time entry, budgets and cost rates, which would duplicate this app and leave
+  two systems of record for hours.
+- **The export already attaches tracking** (`buildXeroPayload` in
+  `integrations/xero.ts`, category name from `XERO_TRACKING_CATEGORY`). What was
+  missing was data: `crosswalk_project.xero_tracking_option` was unpopulated,
+  and the Xero org had no tracking category at all, so the `TrackingName1`
+  columns on the 2025-26 invoice import were silently dropped.
+- **Planning is pure, writing is thin.** `lib/xero-crosswalk.ts` decides what
+  should change and why; `scripts/backfill-xero-crosswalk.ts` reads and writes.
+  The dry run and the real run share one code path, so what you review is what
+  executes. Tested without a database.
+- **Two refusals are deliberate.** The script will not write an option Xero does
+  not have (that silent drop is what cost us the 2025-26 project data), and it
+  will not overwrite an option a human already set without `--force`. Both are
+  reported rather than fixed.
+- **No audit_log entry.** Crosswalks are reference data, not financial records,
+  per the comment on the table. `created_by`/`updated_by` are left null because
+  the script runs outside a user session.
+- **The app and Ajera number the same engagement differently**, so code equality
+  is the fallback, not the rule. App P-7001 is Xero P-6025 (MicroLumix), P-6202
+  is P-6026 (Masen build sprint), P-6055 is P-6031 (LeMans plow). The pairing
+  lives in `xero-project-code-map.csv` next to the option list, one row per
+  engagement with a note explaining it, rather than hard-coded in the script.
+  Confirmed by MH 2026-10-30: use the Ajera number wherever one exists.
+- **The option-list guard is only as good as the list.** It validates against a
+  CSV, not against live Xero. Until the `Project` tracking category actually
+  exists in the org, every option in that file is aspirational, so create the
+  category in Xero BEFORE running `--apply`. A later improvement is to read the
+  options from the Xero API through the existing OAuth connection.
