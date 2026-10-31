@@ -21,7 +21,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "setup:storage": "tsx scripts/setup-storage.ts",
     "xero:crosswalk": "tsx scripts/backfill-xero-crosswalk.ts",
-    "xero:options": "tsx scripts/xero-create-tracking-options.ts"
+    "xero:options": "tsx scripts/xero-create-tracking-options.ts",
+    "xero:invoice": "tsx scripts/xero-push-invoice.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -493,7 +493,26 @@ works).
   options from the Xero API through the existing OAuth connection.
 - **Creating the Xero options is scripted too** (`scripts/xero-create-tracking-options.ts`,
   `npm run xero:options`), same dry-run-by-default shape. It uses the app's own
-  stored OAuth connection, which already carries `accounting.settings`. Blocked
-  2026-10-30: `TOKEN_ENCRYPTION_KEY` has changed since the Xero token was saved
-  on 2026-08-10, so the stored refresh token cannot be decrypted and the
-  connection has to be re-established before the script can run.
+  stored OAuth connection, which already carries `accounting.settings`. Applied
+  2026-10-30: all 34 options created on the `Project` category
+  (`6139e113-4bde-4d34-a501-35a97bc310cb`), and the crosswalk backfilled for
+  all 7 projects. It briefly looked blocked because `TOKEN_ENCRYPTION_KEY` had
+  changed since the token was saved; reconnecting in the app fixed it. That key
+  must stay byte-identical between Vercel and `.env.local`, or locally run
+  scripts cannot read tokens the deployed app stored.
+- **Pushing one invoice is scripted too** (`scripts/xero-push-invoice.ts`,
+  `npm run xero:invoice`), dry run by default, and it calls the app's own
+  `exportInvoiceToXero` rather than re-implementing it, so the reconciliation
+  guard and the audit entry are exercised on the real path. After a push it
+  reads the invoice back out of Xero, because Xero drops an unknown tracking
+  option silently: the only proof the tag landed is what Xero hands back.
+  Verified 2026-10-30 on INV-0002 (LeMans, $250), which came back as
+  `ACCREC / DRAFT` carrying `Project=P-6031`. The earlier INV-0001 push, made
+  before the category existed, reads back with no tracking at all. That is the
+  before-and-after.
+- **Xero numbers the invoice, we do not.** The payload sends the app's number as
+  `Reference` and no `InvoiceNumber`, so Xero assigns one from its own sequence.
+  The LeMans draft came back as `INV-84128` while a manually raised MicroLumix
+  invoice already sits at `84128`. Same digits, different prefix, two different
+  invoices. Worth deciding before volume: either send the app's number as
+  `InvoiceNumber`, or move Xero's sequence clear of the manual one.
