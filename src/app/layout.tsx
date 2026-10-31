@@ -1,25 +1,30 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 // Marmik type system: Space Grotesk (display/headings/buttons), Inter (body),
-// JetBrains Mono (everything technical).
-const spaceGrotesk = Space_Grotesk({
+// JetBrains Mono (everything technical). Served from the repo as variable
+// fonts (latin subset) so the build never depends on fonts.googleapis.com,
+// which failed a production build on 2026-10-30 inside next/font/google.
+const spaceGrotesk = localFont({
+  src: "./fonts/SpaceGrotesk.woff2",
   variable: "--font-space-grotesk",
-  subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: "300 700",
+  display: "swap",
 });
 
-const inter = Inter({
+const inter = localFont({
+  src: "./fonts/Inter.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: "100 900",
+  display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "./fonts/JetBrainsMono.woff2",
   variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: "100 800",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
