@@ -5,6 +5,7 @@ import {
   crosswalkProject,
   invoice,
   invoiceLine,
+  project,
 } from "@/db/schema";
 import {
   type AccountingProvider,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/integrations/accounting";
 import type { QueryDb } from "@/lib/queries";
 import type { Actor } from "@/lib/timesheet-db";
+import { buildInvoiceReference } from "@/lib/xero-reference";
 
 // Push a confirmed app invoice to the accounting system (Xero) as a DRAFT for
 // human approval (WIS M4). Reconciles the built draft to the app invoice's
@@ -45,7 +47,8 @@ export async function exportInvoiceToXero(
   if (inv.xeroInvoiceId) {
     return { externalId: inv.xeroInvoiceId, status: inv.xeroStatus ?? "DRAFT" };
   }
-  if (inv.status === "void") throw new Error("A void invoice cannot be pushed.");
+  if (inv.status === "void")
+    throw new Error("A void invoice cannot be pushed.");
 
   const [cli] = await db
     .select({ name: client.name })
@@ -64,6 +67,8 @@ export async function exportInvoiceToXero(
 
   // Tracking option comes from the invoice's project crosswalk, if any.
   let trackingOption: string | null = null;
+  let projectCode: string | null = null;
+  let projectName: string | null = null;
   if (inv.projectId) {
     const [xw] = await db
       .select({ opt: crosswalkProject.xeroTrackingOption })
@@ -77,10 +82,33 @@ export async function exportInvoiceToXero(
       )
       .limit(1);
     trackingOption = xw?.opt ?? null;
+
+    const [proj] = await db
+      .select({ code: project.code, name: project.name })
+      .from(project)
+      .where(eq(project.id, inv.projectId))
+      .limit(1);
+    projectCode = proj?.code ?? null;
+    projectName = proj?.name ?? null;
   }
 
+  // The tracking tag is invisible to the client (Xero templates cannot print a
+  // tracking category), so the project goes in the Reference, which they can.
+  //
+  // The code on the Reference is the Ajera/Xero number (the tracking option),
+  // not the app's internal code, so the number a client reads matches the
+  // number the books are tagged with. The app code is only a fallback.
+  const reference = buildInvoiceReference({
+    projectCode: trackingOption ?? projectCode,
+    projectName,
+    clientName: cli?.name ?? null,
+    periodStart: inv.periodStart,
+    periodEnd: inv.periodEnd,
+    invoiceDate: inv.invoiceDate,
+  });
+
   const draft: DraftInvoice = {
-    reference: inv.number,
+    reference: reference || inv.number,
     clientName: cli?.name ?? "Unknown client",
     date: inv.invoiceDate ?? inv.periodEnd ?? inv.periodStart ?? "",
     lines: lines.map((l) => ({

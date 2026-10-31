@@ -13,6 +13,7 @@ import { decryptSecret, encryptSecret } from "../src/lib/crypto";
 import { buildXeroPayload, xeroProvider } from "../src/lib/integrations/xero";
 import { xeroOAuth } from "../src/lib/integrations/xero-oauth";
 import { exportInvoiceToXero } from "../src/lib/xero-export-db";
+import { buildInvoiceReference } from "../src/lib/xero-reference";
 
 // Push ONE app invoice to Xero as a DRAFT, to prove the whole chain end to end:
 // app invoice -> project crosswalk -> Xero tracking option -> Xero draft.
@@ -241,10 +242,21 @@ async function main() {
     );
     process.exit(1);
   }
+  // What the client would see as the Reference if this were pushed now.
+  const reference = buildInvoiceReference({
+    projectCode: inv.trackingOption ?? inv.projectCode,
+    projectName: inv.projectName,
+    clientName: inv.clientName,
+    periodStart: inv.periodStart,
+    periodEnd: inv.periodEnd,
+    invoiceDate: inv.invoiceDate,
+  });
+
   if (inv.xeroInvoiceId) {
     console.log(
       `\n${inv.number} is already in Xero as ${inv.xeroInvoiceId} (${inv.xeroStatus}).` +
         "\nNothing to push: the app refuses to send the same invoice twice." +
+        `\nReference it would carry today: ${reference || "(none)"}` +
         "\nReading it back from Xero instead.",
     );
     await readBackFromXero(inv.entityId, inv.xeroInvoiceId);
@@ -261,7 +273,7 @@ async function main() {
 
   // Same shape exportInvoiceToXero builds, so the dry run shows the real body.
   const preview = buildXeroPayload({
-    reference: inv.number,
+    reference: reference || inv.number,
     clientName: inv.clientName ?? "Unknown client",
     date: inv.invoiceDate ?? inv.periodEnd ?? inv.periodStart ?? "",
     lines: lines.map((l) => ({

@@ -3,10 +3,12 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   auditLog,
+  client,
   crosswalkProject,
   entity,
   invoice,
   invoiceLine,
+  project,
   user,
 } from "@/db/schema";
 import { seed } from "@/db/seed";
@@ -111,7 +113,24 @@ describe("exportInvoiceToXero", () => {
     expect(calls).toHaveLength(1);
     // The pushed draft reconciles to the app invoice subtotal.
     expect(reconcileDraftCents(calls[0])).toBe(75000);
-    expect(calls[0].reference).toBe("INV-1001");
+    // The Reference carries the project, because a Xero template cannot print
+    // the tracking tag. Built from the seeded project, not hard-coded.
+    const [proj] = await db
+      .select()
+      .from(project)
+      .where(eq(project.id, xw.projectId));
+    const [cli] = await db
+      .select()
+      .from(client)
+      .where(eq(client.id, xw.clientId));
+    // The code on the Reference is the Ajera/Xero number (the tracking option),
+    // so what the client reads matches what the books are tagged with. The
+    // seeded option is written "P-6055 Plow Platform", code plus name, so the
+    // name is not repeated after it.
+    expect(calls[0].reference).toBe(
+      `${xw.xeroTrackingOption} ${cli.name} - Jul 27-31 2026`,
+    );
+    expect(proj.name).toBeTruthy();
     expect(calls[0].lines).toHaveLength(2);
     expect(calls[0].lines[0].trackingOption).toBe(xw.xeroTrackingOption);
 
