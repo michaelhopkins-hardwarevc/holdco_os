@@ -90,18 +90,24 @@ export function buildInvoiceReference(input: ReferenceInput): string {
     formatPeriod(input.periodStart, input.periodEnd) ||
     formatPeriod(input.invoiceDate, null);
 
-  // Say nothing twice. Ajera project names often start with the client, and a
-  // tracking option is sometimes written as code plus project name rather than
-  // a bare code.
+  // Say nothing twice. Ajera project names often start with the client, and the
+  // tracking options are written as "code + project description", so the code
+  // string itself usually names both the project and the client.
+  const codeLower = code.toLowerCase();
+  const firstWordOfClient = client.split(/[\s,]+/)[0]?.toLowerCase() ?? "";
   const clientRepeated =
-    client !== "" && name.toLowerCase().startsWith(client.toLowerCase());
-  const nameRepeated =
-    name !== "" && code.toLowerCase().includes(name.toLowerCase());
+    client !== "" &&
+    (name.toLowerCase().startsWith(client.toLowerCase()) ||
+      codeLower.includes(client.toLowerCase()) ||
+      (firstWordOfClient.length >= 4 && codeLower.includes(firstWordOfClient)));
+  const nameRepeated = name !== "" && codeLower.includes(name.toLowerCase());
   const middle = [clientRepeated ? "" : client, nameRepeated ? "" : name]
     .filter(Boolean)
     .join(" - ");
-  const tail = [middle, period].filter(Boolean).join(" - ");
-  const full = [code, tail].filter(Boolean).join(" ");
+  // The code runs straight into the middle ("P-6031 LeMans Corporation"), but
+  // the period is always set off by a dash, middle or no middle.
+  const front = [code, middle].filter(Boolean).join(" ");
+  const full = [front, period].filter(Boolean).join(" - ");
   if (full.length <= MAX_REFERENCE) return full;
 
   // Over the limit: the code and the period are what a human scans for, so cut

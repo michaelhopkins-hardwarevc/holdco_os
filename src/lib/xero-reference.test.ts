@@ -78,6 +78,22 @@ describe("buildInvoiceReference", () => {
     ).toBe("P-6055 Plow Platform LeMans Corporation - Oct 19-23 2026");
   });
 
+  it("does not say the client twice when the code already carries it", () => {
+    // Once the tracking options were renamed to "code + project", the option
+    // string itself names the client, so repeating it read badly:
+    // "P-6031 LeMans - Plow Platform LeMans Corporation - Sep 1-23 2026".
+    expect(
+      buildInvoiceReference({
+        projectCode: "P-6031 LeMans - Plow Platform",
+        projectName: "Plow Platform",
+        clientName: "LeMans Corporation",
+        periodStart: "2026-09-01",
+        periodEnd: "2026-09-23",
+        invoiceDate: null,
+      }),
+    ).toBe("P-6031 LeMans - Plow Platform - Sep 1-23 2026");
+  });
+
   it("falls back to the invoice date when there is no period", () => {
     expect(
       buildInvoiceReference({

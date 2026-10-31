@@ -516,3 +516,22 @@ works).
   invoice already sits at `84128`. Same digits, different prefix, two different
   invoices. Worth deciding before volume: either send the app's number as
   `InvoiceNumber`, or move Xero's sequence clear of the manual one.
+- **The tracking options carry the project name, not just the code.** Renamed
+  2026-10-30 from bare codes to "code + Ajera project description", e.g.
+  `P-6031 LeMans - Plow Platform`. Code first, so the Xero dropdown still sorts
+  by number and the crosswalk still matches on a leading-code prefix. Xero caps
+  an option name at 50 characters and several Ajera descriptions run past 70, so
+  long ones are cut at a word boundary by `lib/xero-option-name.ts` (pure and
+  tested, so the exact strings are reviewable before anything is renamed live).
+- **Renaming is safe for history, dangerous for the crosswalk.** Xero renames by
+  option id, so every transaction already tagged follows the rename and nothing
+  breaks. But `crosswalk_project` stores the option NAME, so
+  `scripts/xero-rename-tracking-options.ts` re-points those rows in the same
+  run. Leaving them stale would make the next push send an option Xero no longer
+  has, and Xero drops an unknown option silently, which is the original bug.
+- **The descriptions have one source of record**,
+  `ajera-project-descriptions.csv`, with a `Source` column per row. 29 came from
+  `ACTIVE PROJECTS.xlsx`; four were recovered from 2025-26 invoice and GL
+  history (P-5620-L, P-5998, P-5999, P-6000); P-6031 has no Ajera record at all
+  and is named per MH. The Ajera typo "Soultions" (P-6027) is corrected in the
+  Xero option, because that string now reaches clients through the Reference.
